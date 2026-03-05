@@ -3,6 +3,7 @@ package io.github.markpollack.loopy;
 import com.williamcallahan.tui4j.compat.bubbletea.Model;
 import com.williamcallahan.tui4j.compat.bubbletea.Program;
 
+import io.github.markpollack.loopy.agent.ConsoleToolCallListener;
 import io.github.markpollack.loopy.agent.MiniAgent;
 import io.github.markpollack.loopy.agent.MiniAgentConfig;
 import io.github.markpollack.loopy.command.ClearCommand;
@@ -121,8 +122,10 @@ public class LoopyApp implements Callable<Integer> {
 		}
 
 		try {
-			MiniAgent agent = createAgent(createChatModel(apiKey), false);
+			MiniAgent agent = createAgent(createChatModel(apiKey), false, true);
+			System.err.println("Thinking...");
 			var result = agent.run(this.prompt);
+			System.err.println();
 			if (result.output() != null) {
 				System.out.println(result.output());
 			}
@@ -183,7 +186,7 @@ public class LoopyApp implements Callable<Integer> {
 				// Lazy agent creation
 				if (agent == null) {
 					try {
-						agent = createAgent(chatModel, true);
+						agent = createAgent(chatModel, true, true);
 					}
 					catch (Exception ex) {
 						writer.println("Error creating agent: " + ex.getMessage());
@@ -192,7 +195,9 @@ public class LoopyApp implements Callable<Integer> {
 				}
 
 				try {
+					System.err.println("Thinking...");
 					var result = agent.run(line);
+					System.err.println();
 					if (result.output() != null) {
 						writer.println(result.output());
 					}
@@ -234,6 +239,10 @@ public class LoopyApp implements Callable<Integer> {
 	}
 
 	private MiniAgent createAgent(ChatModel chatModel, boolean withSession) {
+		return createAgent(chatModel, withSession, false);
+	}
+
+	private MiniAgent createAgent(ChatModel chatModel, boolean withSession, boolean consoleProgress) {
 		Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
 		int turns = this.maxTurns != null ? this.maxTurns : 20;
 
@@ -254,6 +263,10 @@ public class LoopyApp implements Callable<Integer> {
 
 		if (withSession) {
 			builder.sessionMemory();
+		}
+
+		if (consoleProgress) {
+			builder.toolCallListener(new ConsoleToolCallListener());
 		}
 
 		return builder.build();

@@ -11,6 +11,6 @@
         <appender-ref ref="STDERR" />
     </root>
 
-    <!-- Loopy's own logging at INFO -->
-    <logger name="io.github.markpollack.loopy" level="INFO" />
+    <!-- Loopy's own logging — quiet by default, use -Dloopy.log=DEBUG to enable -->
+    <logger name="io.github.markpollack.loopy" level="${loopy.log:-WARN}" />
 </configuration>
