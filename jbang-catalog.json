@@ -1,0 +1,8 @@
+{
+  "aliases": {
+    "loopy": {
+      "script-ref": "jbang/loopy.java",
+      "description": "Loopy — a loop-driven interactive coding agent CLI"
+    }
+  }
+}

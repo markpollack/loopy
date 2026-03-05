@@ -1,0 +1,16 @@
+<configuration>
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Quiet by default — only warnings and errors -->
+    <root level="WARN">
+        <appender-ref ref="STDERR" />
+    </root>
+
+    <!-- Loopy's own logging at INFO -->
+    <logger name="io.github.markpollack.loopy" level="INFO" />
+</configuration>
