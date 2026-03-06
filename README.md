@@ -4,29 +4,37 @@ A loop-driven interactive coding agent CLI. Built on Spring AI with an embedded 
 
 ## Quick Start
 
-Requires Java 21+ and an `ANTHROPIC_API_KEY`.
+Requires Java 21+ and an `ANTHROPIC_API_KEY` environment variable.
+
+### JBang (easiest)
 
 ```bash
-# Build
-./mvnw package
-
-# Run (interactive TUI)
-java -jar target/loopy-0.1.0-SNAPSHOT.jar
-
-# Single-shot print mode
-java -jar target/loopy-0.1.0-SNAPSHOT.jar -p "create a hello world app"
-
-# REPL mode
-java -jar target/loopy-0.1.0-SNAPSHOT.jar --repl
-
-# With options
-java -jar target/loopy-0.1.0-SNAPSHOT.jar -d ~/projects/myapp -m claude-sonnet-4-20250514 -t 20
+jbang loopy@markpollack/loopy -p "create a hello world app"
 ```
 
-### JBang
+### Download fat JAR
+
+Download from the [releases page](https://github.com/markpollack/loopy/releases), then:
 
 ```bash
-jbang --repos mavenlocal loopy@markpollack/loopy
+# Single-shot print mode
+java -jar loopy-0.1.0-SNAPSHOT.jar -p "create a hello world app"
+
+# Interactive REPL
+java -jar loopy-0.1.0-SNAPSHOT.jar --repl
+
+# Interactive TUI
+java -jar loopy-0.1.0-SNAPSHOT.jar
+
+# With options
+java -jar loopy-0.1.0-SNAPSHOT.jar -d ~/projects/myapp -m claude-sonnet-4-20250514 -t 20
+```
+
+### Build from source
+
+```bash
+./mvnw package
+java -jar target/loopy-0.1.0-SNAPSHOT.jar --help
 ```
 
 ## Architecture
