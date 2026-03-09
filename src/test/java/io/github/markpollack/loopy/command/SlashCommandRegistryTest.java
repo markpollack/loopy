@@ -44,7 +44,7 @@ class SlashCommandRegistryTest {
 		assertThat(result).isPresent();
 		assertThat(result.get()).contains("/help");
 		assertThat(result.get()).contains("/clear");
-		assertThat(result.get()).contains("/quit");
+		assertThat(result.get()).contains("/exit");
 	}
 
 	@Test
@@ -100,7 +100,7 @@ class SlashCommandRegistryTest {
 		assertThat(this.registry.commands()).hasSize(3);
 		assertThat(this.registry.commands().get(0).name()).isEqualTo("help");
 		assertThat(this.registry.commands().get(1).name()).isEqualTo("clear");
-		assertThat(this.registry.commands().get(2).name()).isEqualTo("quit");
+		assertThat(this.registry.commands().get(2).name()).isEqualTo("exit");
 	}
 
 }

@@ -130,9 +130,10 @@ class ChatScreenTest {
 		screen.setInputValue("/quit");
 		UpdateResult<? extends Model> result = pressEnter(screen);
 
-		// Quit sentinel should produce a quit command, not add to history
+		// Quit sentinel should produce a quit command and show goodbye in history
 		assertThat(result.command()).isNotNull();
-		assertThat(screen.history()).isEmpty();
+		assertThat(screen.history()).hasSize(2);
+		assertThat(screen.history().get(1).content()).contains("Goodbye");
 	}
 
 	@Test

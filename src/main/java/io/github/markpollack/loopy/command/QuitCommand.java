@@ -11,12 +11,12 @@ public class QuitCommand implements SlashCommand {
 
 	@Override
 	public String name() {
-		return "quit";
+		return "exit";
 	}
 
 	@Override
 	public java.util.List<String> aliases() {
-		return java.util.List.of("exit");
+		return java.util.List.of("quit");
 	}
 
 	@Override

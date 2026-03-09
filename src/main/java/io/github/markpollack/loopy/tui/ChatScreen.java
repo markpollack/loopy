@@ -173,8 +173,11 @@ public class ChatScreen implements Model {
 			Optional<String> commandResult = this.commandDispatcher.apply(text, null);
 			if (commandResult.isPresent()) {
 				String result = commandResult.get();
-				// /quit returns a sentinel — trigger program exit
+				// /exit or /quit — show goodbye then quit
 				if (QuitCommand.QUIT_SENTINEL.equals(result)) {
+					this.history.add(ChatEntry.user(text));
+					this.history.add(ChatEntry.system("⎿  Goodbye!"));
+					this.input.setValue("");
 					return UpdateResult.from(this, QuitMessage::new);
 				}
 				this.history.add(ChatEntry.user(text));
@@ -242,7 +245,7 @@ public class ChatScreen implements Model {
 
 		// Hint line (right-aligned, only when not waiting)
 		if (!waiting) {
-			String hintText = "/ commands  •  /quit to exit";
+			String hintText = "/ commands  •  /exit to quit";
 			int padding = Math.max(0, termWidth - hintText.length());
 			sb.append(" ".repeat(padding)).append(HINT_STYLE.render(hintText)).append("\n");
 		}
