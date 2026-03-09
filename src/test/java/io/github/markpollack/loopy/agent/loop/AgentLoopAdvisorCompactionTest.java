@@ -39,7 +39,7 @@ class AgentLoopAdvisorCompactionTest {
 
 	@Test
 	void shouldCompactReturnsFalseWhenNoCompactionModel() {
-		var advisor = buildAdvisor(null, 1000, 0.5);
+		var advisor = buildAdvisor(null, null, 1000, 0.5);
 		var request = buildRequest(List.of(new UserMessage("x".repeat(2000))));
 		assertThat(advisor.shouldCompact(request)).isFalse();
 	}
@@ -49,7 +49,7 @@ class AgentLoopAdvisorCompactionTest {
 		var mockModel = mock(ChatModel.class);
 		// contextLimit=1000, threshold=0.5 → triggers at 500 estimated tokens = 2000
 		// chars
-		var advisor = buildAdvisor(mockModel, 1000, 0.5);
+		var advisor = buildAdvisor(mockModel, "cheap-model", 1000, 0.5);
 		var request = buildRequest(List.of(new UserMessage("x".repeat(2400)))); // 600
 																				// tokens
 		assertThat(advisor.shouldCompact(request)).isTrue();
@@ -58,7 +58,7 @@ class AgentLoopAdvisorCompactionTest {
 	@Test
 	void shouldCompactReturnsFalseWhenUnderThreshold() {
 		var mockModel = mock(ChatModel.class);
-		var advisor = buildAdvisor(mockModel, 1000, 0.5);
+		var advisor = buildAdvisor(mockModel, "cheap-model", 1000, 0.5);
 		var request = buildRequest(List.of(new UserMessage("x".repeat(800)))); // 200
 																				// tokens
 		assertThat(advisor.shouldCompact(request)).isFalse();
@@ -67,7 +67,7 @@ class AgentLoopAdvisorCompactionTest {
 	@Test
 	void compactMessagesPreservesSystemMessages() {
 		var compactionModel = mockCompactionModel("Summary of conversation");
-		var advisor = buildAdvisor(compactionModel, 100, 0.5);
+		var advisor = buildAdvisor(compactionModel, "cheap-model", 100, 0.5);
 
 		// Initialize loop state (required by compactMessages)
 		initLoopState(advisor);
@@ -96,7 +96,7 @@ class AgentLoopAdvisorCompactionTest {
 	@Test
 	void compactMessagesPreservesRecent30Percent() {
 		var compactionModel = mockCompactionModel("Compacted history");
-		var advisor = buildAdvisor(compactionModel, 100, 0.5);
+		var advisor = buildAdvisor(compactionModel, "cheap-model", 100, 0.5);
 		initLoopState(advisor);
 
 		List<Message> messages = new ArrayList<>();
@@ -123,7 +123,7 @@ class AgentLoopAdvisorCompactionTest {
 	@Test
 	void compactMessagesSkipsWhenTooFewMessages() {
 		var compactionModel = mockCompactionModel("summary");
-		var advisor = buildAdvisor(compactionModel, 100, 0.5);
+		var advisor = buildAdvisor(compactionModel, "cheap-model", 100, 0.5);
 		initLoopState(advisor);
 
 		// Only 2 conversation messages (below threshold of 3)
@@ -139,7 +139,7 @@ class AgentLoopAdvisorCompactionTest {
 	void compactMessagesSurvivesCompactionFailure() {
 		var failingModel = mock(ChatModel.class);
 		when(failingModel.call(any(Prompt.class))).thenThrow(new RuntimeException("Model unavailable"));
-		var advisor = buildAdvisor(failingModel, 100, 0.5);
+		var advisor = buildAdvisor(failingModel, "cheap-model", 100, 0.5);
 		initLoopState(advisor);
 
 		List<Message> messages = new ArrayList<>();
@@ -157,13 +157,19 @@ class AgentLoopAdvisorCompactionTest {
 
 	// --- Helpers ---
 
-	private AgentLoopAdvisor buildAdvisor(ChatModel compactionModel, int contextLimit, double threshold) {
-		return AgentLoopAdvisor.builder()
+	private AgentLoopAdvisor buildAdvisor(ChatModel chatModel, String compactionModelName, int contextLimit,
+			double threshold) {
+		var builder = AgentLoopAdvisor.builder()
 			.toolCallingManager(DefaultToolCallingManager.builder().build())
-			.compactionModel(compactionModel)
 			.contextLimit(contextLimit)
-			.compactionThreshold(threshold)
-			.build();
+			.compactionThreshold(threshold);
+		if (chatModel != null) {
+			builder.chatModel(chatModel);
+		}
+		if (compactionModelName != null) {
+			builder.compactionModelName(compactionModelName);
+		}
+		return builder.build();
 	}
 
 	private ChatClientRequest buildRequest(List<Message> messages) {
