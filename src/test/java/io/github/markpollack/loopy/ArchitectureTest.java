@@ -70,4 +70,14 @@ class ArchitectureTest {
 		.allowEmptyShould(true)
 		.because("forge classes are vendored — no upstream forge imports should remain");
 
+	// Boot layer must not depend on forge layer (clean separation)
+	@ArchTest
+	static final ArchRule boot_does_not_depend_on_forge = noClasses().that()
+		.resideInAPackage("io.github.markpollack.loopy.boot..")
+		.should()
+		.dependOnClassesThat()
+		.resideInAPackage("io.github.markpollack.loopy.forge..")
+		.allowEmptyShould(true)
+		.because("boot scaffolding uses harness-patterns graph directly, not the forge layer");
+
 }
