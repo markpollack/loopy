@@ -9,7 +9,7 @@ import com.williamcallahan.tui4j.compat.bubbletea.WindowSizeMessage;
 import com.williamcallahan.tui4j.compat.bubbletea.bubbles.textinput.TextInput;
 import com.williamcallahan.tui4j.compat.bubbletea.input.key.KeyAliases;
 import com.williamcallahan.tui4j.compat.bubbletea.input.key.KeyAliases.KeyAlias;
-import com.williamcallahan.tui4j.compat.bubbletea.message.QuitMessage;
+import com.williamcallahan.tui4j.compat.bubbletea.QuitMessage;
 import com.williamcallahan.tui4j.compat.bubbles.spinner.Spinner;
 import com.williamcallahan.tui4j.compat.bubbles.spinner.SpinnerType;
 import com.williamcallahan.tui4j.compat.bubbles.spinner.TickMessage;
@@ -242,7 +242,7 @@ public class ChatScreen implements Model {
 
 		// Hint line (right-aligned, only when not waiting)
 		if (!waiting) {
-			String hintText = "/ commands  •  /exit to quit";
+			String hintText = "/ commands  •  /quit to exit";
 			int padding = Math.max(0, termWidth - hintText.length());
 			sb.append(" ".repeat(padding)).append(HINT_STYLE.render(hintText)).append("\n");
 		}

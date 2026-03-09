@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Loopy launcher — sets JVM flags and forwards all arguments
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JAR="$DIR/target/loopy-0.2.0-SNAPSHOT.jar"
+exec java --enable-native-access=ALL-UNNAMED -jar "$JAR" "$@"
