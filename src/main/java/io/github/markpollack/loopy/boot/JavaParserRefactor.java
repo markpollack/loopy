@@ -34,10 +34,8 @@ public class JavaParserRefactor {
 
 	private static final Logger logger = LoggerFactory.getLogger(JavaParserRefactor.class);
 
-	// JAVA_18 is the highest level in javaparser-core 3.25.7; records (Java 16+) parse
-	// correctly
 	private final JavaParser parser = new JavaParser(
-			new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_18));
+			new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21));
 
 	/**
 	 * Rename all occurrences of {@code fromPackage} to {@code toPackage} in the given
