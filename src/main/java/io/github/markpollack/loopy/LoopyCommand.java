@@ -13,6 +13,7 @@ import io.github.markpollack.loopy.agent.DebugToolCallListener;
 import io.github.markpollack.loopy.agent.MiniAgent;
 import io.github.markpollack.loopy.agent.MiniAgentConfig;
 import io.github.markpollack.loopy.boot.BootAddCommand;
+import io.github.markpollack.loopy.boot.BootModifyCommand;
 import io.github.markpollack.loopy.boot.BootNewCommand;
 import io.github.markpollack.loopy.boot.StartersCommand;
 import io.github.markpollack.loopy.command.ClearCommand;
@@ -278,6 +279,7 @@ public class LoopyCommand implements Callable<Integer> {
 		registry.register(new BootNewCommand(chatModel));
 		registry.register(new StartersCommand());
 		registry.register(new BootAddCommand(chatModel));
+		registry.register(new BootModifyCommand(chatModel));
 		registry.register(new QuitCommand());
 		return registry;
 	}
