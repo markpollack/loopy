@@ -1,0 +1,26 @@
+spring:
+  main:
+    web-application-type: none
+    banner-mode: off
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: claude-sonnet-4-20250514
+          max-tokens: 4096
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: gpt-4o
+    google:
+      genai:
+        api-key: ${GOOGLE_API_KEY:}
+        chat:
+          options:
+            model: gemini-2.5-flash
+
+logging:
+  level:
+    root: OFF

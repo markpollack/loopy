@@ -91,7 +91,7 @@ public class LoopyAgent {
 
 		private Set<String> disabledTools = Set.of();
 
-		private boolean compactionEnabled = true;
+		private String compactionModelName = "claude-haiku-4-5-20251001";
 
 		private int contextLimit = 200_000;
 
@@ -155,12 +155,11 @@ public class LoopyAgent {
 		}
 
 		/**
-		 * Enable or disable context compaction for long sessions (default true). When
-		 * enabled, old messages are summarized via Haiku when context exceeds 50% of the
-		 * model limit.
+		 * Set the model name for compaction (default: claude-haiku-4-5-20251001). Set to
+		 * null to disable compaction.
 		 */
-		public Builder compactionEnabled(boolean enabled) {
-			this.compactionEnabled = enabled;
+		public Builder compactionModelName(String modelName) {
+			this.compactionModelName = modelName;
 			return this;
 		}
 
@@ -259,15 +258,8 @@ public class LoopyAgent {
 			agentBuilder.contextLimit(contextLimit);
 			agentBuilder.compactionThreshold(compactionThreshold);
 
-			// Create compaction model (Haiku) for context compaction
-			if (compactionEnabled && baseUrl == null) {
-				var compactionApi = AnthropicApi.builder().apiKey(resolvedApiKey).build();
-				var compactionChatModel = AnthropicChatModel.builder()
-					.anthropicApi(compactionApi)
-					.defaultOptions(
-							AnthropicChatOptions.builder().model("claude-haiku-4-5-20251001").maxTokens(4096).build())
-					.build();
-				agentBuilder.compactionModel(compactionChatModel);
+			if (compactionModelName != null) {
+				agentBuilder.compactionModelName(compactionModelName);
 			}
 
 			return new LoopyAgent(agentBuilder.build());

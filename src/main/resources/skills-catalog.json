@@ -1,0 +1,305 @@
+{
+  "version": "2",
+  "updated": "2026-03-08",
+  "skills": [
+    {
+      "name": "spring-boot",
+      "description": "Spring Boot conventions — DDD code org, Spring Data JPA, service layer patterns, REST APIs, testing with Testcontainers, ArchUnit, Spring Modulith",
+      "author": "Siva Prasad Reddy (sivalabs)",
+      "tags": ["spring-boot", "conventions", "testing", "jpa", "rest"],
+      "source": {
+        "type": "github",
+        "repo": "sivaprasadreddy/sivalabs-agent-skills",
+        "path": "spring-boot-skill",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:sivaprasadreddy__sivalabs-agent-skills__spring-boot-skill"
+    },
+    {
+      "name": "dr-jskill",
+      "description": "Spring Boot 4.x project generation — Java 25, Maven, PostgreSQL, opinionated scaffolding with executable scripts and deep reference guides",
+      "author": "Julien Dubois (Microsoft)",
+      "tags": ["spring-boot", "project-generation", "scaffolding", "initializr"],
+      "source": {
+        "type": "github",
+        "repo": "jdubois/dr-jskill",
+        "path": ".",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "jdb-agentic-debugger",
+      "description": "Real JDB debugging with multi-agent orchestration — parallel jdb-session, jdb-diagnostics, jdb-analyst sub-agents. 3x speedup, 33% more bugs found",
+      "author": "Bruno Borges (Microsoft)",
+      "tags": ["debugging", "jdb", "java", "multi-agent"],
+      "source": {
+        "type": "github",
+        "repo": "brunoborges/jdb-agentic-debugger",
+        "path": ".",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "jbang-mcp-server",
+      "description": "Scaffold zero-boilerplate Java MCP STDIO servers using JBang and LangChain4j — bootstrap an MCP server from scratch",
+      "author": "Guillaume Laforge",
+      "tags": ["java", "mcp", "jbang", "langchain4j", "scaffolding"],
+      "source": {
+        "type": "github",
+        "repo": "glaforge/java-stdio-mcp-server",
+        "path": ".",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:glaforge__java-stdio-mcp-server__jbang-mcp-server"
+    },
+    {
+      "name": "ai-tutor",
+      "description": "Educational tutoring with narrative frameworks, research methodology, YouTube transcript analysis",
+      "author": "spring-ai-community",
+      "tags": ["education", "tutoring", "research"],
+      "source": {
+        "type": "github",
+        "repo": "spring-ai-community/spring-ai-agent-utils",
+        "path": "examples/skills-demo/.claude/skills/ai-tutor",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "pdf",
+      "description": "Extract text and tables from PDF files, fill forms, merge and split documents. Uses Python reportlab/pypdf",
+      "author": "Anthropic",
+      "tags": ["pdf", "document-processing", "python"],
+      "source": {
+        "type": "github",
+        "repo": "anthropics/skills",
+        "path": "skills/pdf",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:anthropics__skills__pdf"
+    },
+    {
+      "name": "docx",
+      "description": "Create, read, edit, and manipulate Word documents (.docx) with formatting, tables of contents, headings, and page numbers",
+      "author": "Anthropic",
+      "tags": ["documents", "office", "word", "productivity"],
+      "source": {
+        "type": "github",
+        "repo": "anthropics/skills",
+        "path": "skills/docx",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:anthropics__skills__docx"
+    },
+    {
+      "name": "xlsx",
+      "description": "Create, edit, analyze, and format spreadsheets (.xlsx, .csv, .tsv) with formula-aware workflows, charts, and data cleaning",
+      "author": "Anthropic",
+      "tags": ["documents", "office", "spreadsheets", "data", "productivity"],
+      "source": {
+        "type": "github",
+        "repo": "anthropics/skills",
+        "path": "skills/xlsx",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:anthropics__skills__xlsx"
+    },
+    {
+      "name": "create-mcp-server",
+      "description": "Create Model Context Protocol servers for extending AI agent capabilities with custom tools and resources",
+      "author": "Anthropic",
+      "tags": ["mcp", "server", "tools", "extensibility"],
+      "source": {
+        "type": "github",
+        "repo": "anthropics/skills",
+        "path": "skills/create-mcp-server",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:anthropics__skills__create-mcp-server"
+    },
+    {
+      "name": "skill-creator",
+      "description": "Create new Agent Skills — SKILL.md authoring, companion file structure, testing patterns",
+      "author": "Anthropic",
+      "tags": ["meta", "authoring", "skills"],
+      "source": {
+        "type": "github",
+        "repo": "anthropics/skills",
+        "path": "skills/skill-creator",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:anthropics__skills__skill-creator"
+    },
+    {
+      "name": "webapp-testing",
+      "description": "Playwright-based toolkit for testing local web applications, verifying frontend functionality, capturing browser screenshots, and viewing logs",
+      "author": "Anthropic",
+      "tags": ["testing", "playwright", "browser", "qa", "frontend"],
+      "source": {
+        "type": "github",
+        "repo": "anthropics/skills",
+        "path": "skills/webapp-testing",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:anthropics__skills__webapp-testing"
+    },
+    {
+      "name": "doc-coauthoring",
+      "description": "Structured workflow for co-authoring documentation, proposals, technical specs, and decision docs through context gathering and refinement",
+      "author": "Anthropic",
+      "tags": ["documentation", "writing", "workflow", "collaboration"],
+      "source": {
+        "type": "github",
+        "repo": "anthropics/skills",
+        "path": "skills/doc-coauthoring",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "gh-fix-ci",
+      "description": "Debug and fix failing GitHub PR checks in GitHub Actions — inspects checks and logs, summarizes failure context, drafts a fix plan",
+      "author": "OpenAI",
+      "tags": ["github", "ci", "debugging", "devops", "actions"],
+      "source": {
+        "type": "github",
+        "repo": "openai/skills",
+        "path": "skills/.curated/gh-fix-ci",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "gh-address-comments",
+      "description": "Address review and issue comments on open GitHub PRs using gh CLI — verifies auth and processes PR feedback systematically",
+      "author": "OpenAI",
+      "tags": ["github", "code-review", "pr", "collaboration"],
+      "source": {
+        "type": "github",
+        "repo": "openai/skills",
+        "path": "skills/.curated/gh-address-comments",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "security-best-practices",
+      "description": "Language and framework-specific security reviews — secure-by-default coding guidance for Python, JavaScript/TypeScript, Go, and Java",
+      "author": "OpenAI",
+      "tags": ["security", "code-review", "best-practices"],
+      "source": {
+        "type": "github",
+        "repo": "openai/skills",
+        "path": "skills/.curated/security-best-practices",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "security-threat-model",
+      "description": "Repository-grounded threat modeling — trust boundaries, assets, attacker capabilities, abuse paths, and mitigations as structured Markdown",
+      "author": "OpenAI",
+      "tags": ["security", "threat-modeling", "appsec", "architecture"],
+      "source": {
+        "type": "github",
+        "repo": "openai/skills",
+        "path": "skills/.curated/security-threat-model",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "create-architectural-decision-record",
+      "description": "Generate Architectural Decision Record (ADR) documents for structured, AI-optimized decision documentation",
+      "author": "GitHub",
+      "tags": ["documentation", "architecture", "adr", "decisions"],
+      "source": {
+        "type": "github",
+        "repo": "github/awesome-copilot",
+        "path": "skills/create-architectural-decision-record",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:github__awesome-copilot__create-architectural-decision-record"
+    },
+    {
+      "name": "refactor",
+      "description": "Surgical code refactoring — extract functions, rename, break down god functions, improve type safety, apply design patterns without changing behavior",
+      "author": "GitHub",
+      "tags": ["refactoring", "code-quality", "maintenance", "best-practices"],
+      "source": {
+        "type": "github",
+        "repo": "github/awesome-copilot",
+        "path": "skills/refactor",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:github__awesome-copilot__refactor"
+    },
+    {
+      "name": "openapi-to-application-code",
+      "description": "Generate a complete, production-ready application from an OpenAPI specification",
+      "author": "GitHub",
+      "tags": ["openapi", "code-generation", "api", "scaffolding"],
+      "source": {
+        "type": "github",
+        "repo": "github/awesome-copilot",
+        "path": "skills/openapi-to-application-code",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:github__awesome-copilot__openapi-to-application-code"
+    },
+    {
+      "name": "systematic-debugging",
+      "description": "Systematic bug and test failure diagnosis before proposing fixes — evidence-based debugging methodology",
+      "author": "Jesse Vincent (obra)",
+      "tags": ["debugging", "testing", "diagnosis", "workflow"],
+      "source": {
+        "type": "github",
+        "repo": "obra/superpowers",
+        "path": "skills/systematic-debugging",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:obra__superpowers__systematic-debugging"
+    },
+    {
+      "name": "test-driven-development",
+      "description": "TDD workflow for implementing features and bugfixes — write tests before implementation code",
+      "author": "Jesse Vincent (obra)",
+      "tags": ["testing", "tdd", "workflow", "best-practices"],
+      "source": {
+        "type": "github",
+        "repo": "obra/superpowers",
+        "path": "skills/test-driven-development",
+        "branch": "main"
+      },
+      "skillsjars": null
+    },
+    {
+      "name": "verification-before-completion",
+      "description": "Pre-completion verification with evidence-based assertions — ensures work meets acceptance criteria before declaring done",
+      "author": "Jesse Vincent (obra)",
+      "tags": ["verification", "qa", "workflow", "best-practices"],
+      "source": {
+        "type": "github",
+        "repo": "obra/superpowers",
+        "path": "skills/verification-before-completion",
+        "branch": "main"
+      },
+      "skillsjars": "com.skillsjars:obra__superpowers__verification-before-completion"
+    },
+    {
+      "name": "supabase-postgres-best-practices",
+      "description": "Postgres performance optimization and best practices — query tuning, schema design, indexing strategies, and database configuration",
+      "author": "Supabase",
+      "tags": ["postgres", "database", "sql", "performance"],
+      "source": {
+        "type": "github",
+        "repo": "supabase/agent-skills",
+        "path": "skills/supabase-postgres-best-practices",
+        "branch": "main"
+      },
+      "skillsjars": null
+    }
+  ]
+}

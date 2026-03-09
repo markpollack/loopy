@@ -15,6 +15,7 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingManager;
 
@@ -94,7 +95,9 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 
 	private final String modelName;
 
-	private final @Nullable ChatModel compactionModel;
+	private final @Nullable ChatModel chatModel;
+
+	private final @Nullable String compactionModelName;
 
 	private final int contextLimit;
 
@@ -114,7 +117,8 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 		this.abortSignal = new AtomicBoolean(false);
 		this.workingDirectory = builder.workingDirectory;
 		this.modelName = builder.modelName;
-		this.compactionModel = builder.compactionModel;
+		this.chatModel = builder.chatModel;
+		this.compactionModelName = builder.compactionModelName;
 		this.contextLimit = builder.contextLimit;
 		this.compactionThreshold = builder.compactionThreshold;
 	}
@@ -309,7 +313,7 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 	 * Returns true if the estimated token count exceeds the compaction threshold.
 	 */
 	boolean shouldCompact(ChatClientRequest request) {
-		if (compactionModel == null) {
+		if (chatModel == null || compactionModelName == null) {
 			return false;
 		}
 		List<Message> messages = request.prompt().getInstructions();
@@ -358,11 +362,12 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 			log.info("Compacting {} messages ({} estimated tokens) via compaction model", toCompress.size(),
 					estimateTokenCount(toCompress));
 
-			String summary = ChatClient.builder(compactionModel)
+			String summary = ChatClient.builder(chatModel)
 				.build()
 				.prompt()
 				.system(COMPACTION_PROMPT)
 				.user(historyText.toString())
+				.options(ChatOptions.builder().model(compactionModelName).build())
 				.call()
 				.content();
 
@@ -552,7 +557,9 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 
 		private String modelName;
 
-		private @Nullable ChatModel compactionModel;
+		private @Nullable ChatModel chatModel;
+
+		private @Nullable String compactionModelName;
 
 		private int contextLimit = DEFAULT_CONTEXT_LIMIT;
 
@@ -646,13 +653,24 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 		}
 
 		/**
-		 * Sets the model used for context compaction. If null (default), compaction is
-		 * disabled.
-		 * @param compactionModel model for summarizing old messages
+		 * Sets the primary chat model used for compaction requests.
+		 * @param chatModel the primary chat model (same credentials, different model name
+		 * via options override)
 		 * @return this builder
 		 */
-		public Builder compactionModel(@Nullable ChatModel compactionModel) {
-			this.compactionModel = compactionModel;
+		public Builder chatModel(@Nullable ChatModel chatModel) {
+			this.chatModel = chatModel;
+			return this;
+		}
+
+		/**
+		 * Sets the model name to use for compaction. If null (default), compaction is
+		 * disabled.
+		 * @param compactionModelName cheap model name for summarizing old messages
+		 * @return this builder
+		 */
+		public Builder compactionModelName(@Nullable String compactionModelName) {
+			this.compactionModelName = compactionModelName;
 			return this;
 		}
 

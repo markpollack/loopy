@@ -1,0 +1,400 @@
+package io.github.markpollack.loopy;
+
+import com.williamcallahan.tui4j.compat.bubbletea.Model;
+import com.williamcallahan.tui4j.compat.bubbletea.Program;
+
+import io.github.markpollack.journal.Journal;
+import io.github.markpollack.journal.Run;
+import io.github.markpollack.journal.storage.JsonFileStorage;
+import io.github.markpollack.loopy.agent.ConsoleToolCallListener;
+import io.github.markpollack.loopy.agent.DebugLoopListener;
+import io.github.markpollack.loopy.agent.DebugToolCallListener;
+import io.github.markpollack.loopy.agent.MiniAgent;
+import io.github.markpollack.loopy.agent.MiniAgentConfig;
+import io.github.markpollack.loopy.command.ClearCommand;
+import io.github.markpollack.loopy.command.CommandContext;
+import io.github.markpollack.loopy.command.HelpCommand;
+import io.github.markpollack.loopy.command.QuitCommand;
+import io.github.markpollack.loopy.command.SkillsCommand;
+import io.github.markpollack.loopy.command.SlashCommandRegistry;
+import io.github.markpollack.loopy.forge.ForgeAgentCommand;
+import io.github.markpollack.loopy.tui.ChatScreen;
+import io.github.markpollack.loopy.tui.LogoScreen;
+
+import org.springframework.ai.chat.model.ChatModel;
+
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
+import org.jspecify.annotations.Nullable;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.concurrent.Callable;
+
+@Command(name = "loopy", mixinStandardHelpOptions = true, version = "loopy 0.1.0-SNAPSHOT",
+		description = "A loop-driven interactive coding agent CLI")
+public class LoopyCommand implements Callable<Integer> {
+
+	private final @Nullable ChatModel chatModel;
+
+	@Option(names = { "-d", "--directory" }, description = "Working directory (default: current)")
+	private Path directory;
+
+	@Option(names = { "-m", "--model" }, description = "Model name")
+	private String model;
+
+	@Option(names = { "-t", "--max-turns" }, description = "Max agent turns (default: 20)")
+	private Integer maxTurns;
+
+	@Option(names = { "-p", "--print" }, description = "Single-shot prompt (print mode)")
+	private String prompt;
+
+	@Option(names = { "--provider" }, description = "AI provider: anthropic (default), openai, google-genai")
+	private String provider;
+
+	@Option(names = { "--base-url" }, description = "Custom API base URL (for local models, vLLM, LM Studio)")
+	private String baseUrl;
+
+	@Option(names = { "--debug" }, description = "Show verbose agent activity (turns, tool calls, cost) on stderr")
+	private boolean debug;
+
+	@Option(names = { "--repl" }, description = "REPL mode (readline loop)")
+	private boolean repl;
+
+	public LoopyCommand(@Nullable ChatModel chatModel) {
+		this.chatModel = chatModel;
+	}
+
+	@Override
+	public Integer call() {
+		configureDevLogging();
+		if (this.prompt != null) {
+			return runPrintMode();
+		}
+		if (this.repl) {
+			return runReplMode();
+		}
+		// TUI mode (default)
+		return runTui();
+	}
+
+	private int runTui() {
+		Run journalRun = null;
+		MiniAgent agent = null;
+
+		if (this.chatModel != null) {
+			try {
+				journalRun = startJournalRun();
+				agent = createAgent(this.chatModel, true, false, journalRun);
+			}
+			catch (Exception ex) {
+				System.err.println("Error creating agent: " + ex.getMessage());
+				if (journalRun != null) {
+					journalRun.fail(ex);
+					journalRun.close();
+				}
+				return 1;
+			}
+		}
+
+		// Build slash command registry
+		SlashCommandRegistry registry = createCommandRegistry(this.chatModel);
+		Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
+		final MiniAgent finalAgent = agent;
+		CommandContext ctx = new CommandContext(workDir, finalAgent != null ? finalAgent::clearSession : () -> {
+		});
+
+		java.util.function.Supplier<Model> chatScreenFactory;
+		if (finalAgent != null) {
+			chatScreenFactory = () -> new ChatScreen(text -> {
+				var result = finalAgent.run(text);
+				String output = result.output() != null ? result.output() : "[" + result.status() + "]";
+				return output + "\n" + formatCost(result);
+			}, (input, ignored) -> registry.dispatch(input, ctx));
+		}
+		else {
+			// Echo mode when no API key (for testing)
+			chatScreenFactory = () -> new ChatScreen((text) -> "You said: " + text,
+					(input, ignored) -> registry.dispatch(input, ctx));
+		}
+
+		LogoScreen logo = new LogoScreen(chatScreenFactory);
+		Program program = new Program(logo).withAltScreen();
+		program.run();
+
+		if (journalRun != null) {
+			journalRun.close();
+		}
+		return 0;
+	}
+
+	private Integer runPrintMode() {
+		if (this.chatModel == null) {
+			System.err.println("Error: ANTHROPIC_API_KEY environment variable not set");
+			return 1;
+		}
+
+		if (this.prompt.isBlank()) {
+			System.err.println("Error: -p/--print requires a non-empty prompt");
+			return 1;
+		}
+
+		try (Run journalRun = startJournalRun()) {
+			MiniAgent agent = createAgent(this.chatModel, false, true, journalRun);
+			System.err.println("Thinking...");
+			var result = agent.run(this.prompt);
+			System.err.println();
+			if (result.output() != null) {
+				System.out.println(result.output());
+			}
+			System.err.println(formatCost(result));
+			return result.isSuccess() ? 0 : 1;
+		}
+		catch (Exception ex) {
+			System.err.println("Error: " + ex.getMessage());
+			return 1;
+		}
+	}
+
+	private Integer runReplMode() {
+		if (this.chatModel == null) {
+			System.err.println("Error: ANTHROPIC_API_KEY environment variable not set");
+			return 1;
+		}
+
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+				PrintWriter writer = new PrintWriter(System.out, true);
+				Run journalRun = startJournalRun()) {
+
+			MiniAgent agent = null;
+			SlashCommandRegistry registry = createCommandRegistry(this.chatModel);
+			Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
+
+			writer.println("Loopy REPL — type /help for commands, /quit to exit");
+			writer.println();
+
+			while (true) {
+				writer.print("> ");
+				writer.flush();
+
+				String line = reader.readLine();
+				if (line == null) {
+					break;
+				}
+
+				line = line.trim();
+				if (line.isEmpty()) {
+					continue;
+				}
+
+				// Slash command dispatch
+				if (line.startsWith("/")) {
+					CommandContext ctx = new CommandContext(workDir, agent != null ? agent::clearSession : () -> {
+					});
+					var cmdResult = registry.dispatch(line, ctx);
+					if (cmdResult.isPresent()) {
+						String result = cmdResult.get();
+						if (QuitCommand.QUIT_SENTINEL.equals(result)) {
+							break;
+						}
+						writer.println(result);
+						continue;
+					}
+				}
+
+				// Lazy agent creation
+				if (agent == null) {
+					try {
+						agent = createAgent(this.chatModel, true, true, journalRun);
+					}
+					catch (Exception ex) {
+						writer.println("Error creating agent: " + ex.getMessage());
+						continue;
+					}
+				}
+
+				try {
+					System.err.println("Thinking...");
+					var result = agent.run(line);
+					System.err.println();
+					if (result.output() != null) {
+						writer.println(result.output());
+					}
+					else {
+						writer.printf("[%s]%n", result.status());
+					}
+					writer.println(formatCost(result));
+				}
+				catch (Exception ex) {
+					writer.println("Error: " + ex.getMessage());
+				}
+				writer.println();
+			}
+
+			writer.println("Goodbye!");
+			return 0;
+		}
+		catch (IOException ex) {
+			System.err.println("Error: " + ex.getMessage());
+			return 1;
+		}
+	}
+
+	private SlashCommandRegistry createCommandRegistry(@Nullable ChatModel chatModel) {
+		SlashCommandRegistry registry = new SlashCommandRegistry();
+		registry.register(new HelpCommand(registry));
+		registry.register(new ClearCommand());
+		registry.register(new SkillsCommand());
+		registry.register(new ForgeAgentCommand(chatModel));
+		registry.register(new QuitCommand());
+		return registry;
+	}
+
+	private MiniAgent createAgent(ChatModel chatModel, boolean withSession) {
+		return createAgent(chatModel, withSession, false, null);
+	}
+
+	private MiniAgent createAgent(ChatModel chatModel, boolean withSession, boolean consoleProgress) {
+		return createAgent(chatModel, withSession, consoleProgress, null);
+	}
+
+	private MiniAgent createAgent(ChatModel chatModel, boolean withSession, boolean consoleProgress,
+			@Nullable Run journalRun) {
+		Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
+		int turns = this.maxTurns != null ? this.maxTurns : 20;
+
+		var config = MiniAgentConfig.builder()
+			.workingDirectory(workDir)
+			.maxTurns(turns)
+			.commandTimeout(Duration.ofSeconds(120))
+			.build();
+
+		// CLAUDE.md auto-injection — append to default system prompt
+		String claudeMd = readClaudeMd(workDir);
+		if (claudeMd != null) {
+			String basePrompt = config.systemPrompt();
+			config = config.apply(b -> b.systemPrompt(basePrompt + "\n\n## Project Instructions\n" + claudeMd));
+		}
+
+		var builder = MiniAgent.builder().config(config).model(chatModel);
+
+		// Enable compaction with a cheap model from the same provider
+		String compactionModel = resolveCompactionModel();
+		if (compactionModel != null) {
+			builder.compactionModelName(compactionModel);
+		}
+
+		if (withSession) {
+			builder.sessionMemory();
+		}
+
+		if (this.debug) {
+			builder.toolCallListener(new DebugToolCallListener());
+			builder.loopListener(new DebugLoopListener());
+		}
+		else if (consoleProgress) {
+			builder.toolCallListener(new ConsoleToolCallListener());
+		}
+
+		if (journalRun != null) {
+			builder.journalRun(journalRun);
+		}
+
+		return builder.build();
+	}
+
+	private String resolveCompactionModel() {
+		String p = this.provider != null ? this.provider : "anthropic";
+		return switch (p) {
+			case "anthropic" -> "claude-haiku-4-5-20251001";
+			case "openai" -> "gpt-4o-mini";
+			case "google-genai" -> "gemini-2.5-flash-lite";
+			default -> null;
+		};
+	}
+
+	private static String formatCost(MiniAgent.MiniAgentResult result) {
+		return String.format("tokens: %d/%d | cost: $%.4f", result.inputTokens(), result.outputTokens(),
+				result.estimatedCost());
+	}
+
+	/**
+	 * Configure developer file logging if LOOPY_DEBUG_LOG env var is set.
+	 * <p>
+	 * Full logback DEBUG output goes to a file — Spring AI advisor chain, token math,
+	 * etc. Console logging stays OFF so the TUI is not corrupted.
+	 * <p>
+	 * Set to a path: {@code LOOPY_DEBUG_LOG=/tmp/loopy.log} Set without value or "1":
+	 * uses default {@code ~/.local/state/loopy/logs/loopy-debug.log}
+	 */
+	private void configureDevLogging() {
+		String envVal = System.getenv("LOOPY_DEBUG_LOG");
+		if (envVal == null || envVal.isBlank()) {
+			return;
+		}
+
+		try {
+			Path logFile;
+			if ("1".equals(envVal) || "true".equalsIgnoreCase(envVal)) {
+				Path logDir = Path.of(System.getProperty("user.home"), ".local", "state", "loopy", "logs");
+				Files.createDirectories(logDir);
+				logFile = logDir.resolve("loopy-debug.log");
+			}
+			else {
+				logFile = Path.of(envVal);
+				Files.createDirectories(logFile.getParent());
+			}
+
+			var loggerContext = (ch.qos.logback.classic.LoggerContext) org.slf4j.LoggerFactory.getILoggerFactory();
+
+			var encoder = new ch.qos.logback.classic.encoder.PatternLayoutEncoder();
+			encoder.setContext(loggerContext);
+			encoder.setPattern("%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n");
+			encoder.start();
+
+			var fileAppender = new ch.qos.logback.core.FileAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+			fileAppender.setContext(loggerContext);
+			fileAppender.setFile(logFile.toString());
+			fileAppender.setAppend(false);
+			fileAppender.setEncoder(encoder);
+			fileAppender.start();
+
+			var loopyLogger = loggerContext.getLogger("io.github.markpollack.loopy");
+			loopyLogger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+			loopyLogger.addAppender(fileAppender);
+
+			System.err.println("Dev logging to: " + logFile);
+		}
+		catch (IOException ex) {
+			System.err.println("Warning: could not configure dev logging: " + ex.getMessage());
+		}
+	}
+
+	private Run startJournalRun() {
+		Path journalDir = Path.of(System.getProperty("user.home"), ".local", "state", "loopy", "journal");
+		Journal.configure(new JsonFileStorage(journalDir));
+		return Journal.run("loopy-session")
+			.config("provider", this.provider != null ? this.provider : "anthropic")
+			.start();
+	}
+
+	private String readClaudeMd(Path workDir) {
+		Path claudeMdPath = workDir.resolve("CLAUDE.md");
+		if (Files.isRegularFile(claudeMdPath)) {
+			try {
+				return Files.readString(claudeMdPath);
+			}
+			catch (IOException ex) {
+				// Silently ignore — not critical
+			}
+		}
+		return null;
+	}
+
+}

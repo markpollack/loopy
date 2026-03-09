@@ -1,8 +1,11 @@
 package io.github.markpollack.loopy.agent;
 
+import io.github.markpollack.journal.Run;
 import io.micrometer.observation.ObservationRegistry;
 import io.github.markpollack.loopy.agent.callback.AgentCallback;
 import io.github.markpollack.loopy.agent.core.ToolCallListener;
+import io.github.markpollack.loopy.agent.journal.JournalLoopListener;
+import io.github.markpollack.loopy.agent.journal.JournalToolCallListener;
 import io.github.markpollack.loopy.agent.loop.AgentLoopAdvisor;
 import io.github.markpollack.loopy.agent.loop.AgentLoopListener;
 import io.github.markpollack.loopy.agent.loop.AgentLoopTerminatedException;
@@ -12,6 +15,7 @@ import io.github.markpollack.loopy.agent.core.TerminationReason;
 import org.springaicommunity.agent.tools.AskUserQuestionTool;
 import org.springaicommunity.agent.tools.BraveWebSearchTool;
 import org.springaicommunity.agent.tools.FileSystemTools;
+import org.springaicommunity.agent.tools.SkillsTool;
 import org.springaicommunity.agent.tools.GlobTool;
 import org.springaicommunity.agent.tools.GrepTool;
 import org.springaicommunity.agent.tools.SmartWebFetchTool;
@@ -124,6 +128,51 @@ public class MiniAgent {
 				.add(TaskTool.builder().taskRepository(taskRepository).subagentTypes(claudeSubagentType).build());
 		}
 
+		// Add SkillsTool for domain knowledge discovery (progressive disclosure)
+		// Three sources: filesystem directories, classpath JARs (SkillsJars convention)
+		if (!builder.disabledTools.contains("Skills")) {
+			var skillsBuilder = SkillsTool.builder();
+			boolean hasSkills = false;
+
+			// Project-level skills: .claude/skills/ in working directory
+			var projectSkillsDir = config.workingDirectory().resolve(".claude/skills");
+			if (java.nio.file.Files.isDirectory(projectSkillsDir)) {
+				skillsBuilder.addSkillsDirectory(projectSkillsDir.toString());
+				hasSkills = true;
+			}
+
+			// Global skills: ~/.claude/skills/
+			var globalSkillsDir = java.nio.file.Path.of(System.getProperty("user.home"), ".claude", "skills");
+			if (java.nio.file.Files.isDirectory(globalSkillsDir)) {
+				skillsBuilder.addSkillsDirectory(globalSkillsDir.toString());
+				hasSkills = true;
+			}
+
+			// Classpath skills: SkillsJars on the classpath (Maven dependencies)
+			// Two conventions: META-INF/skills/ and META-INF/resources/skills/
+			for (String prefix : List.of("META-INF/skills", "META-INF/resources/skills")) {
+				try {
+					var resource = new org.springframework.core.io.ClassPathResource(prefix);
+					skillsBuilder.addSkillsResource(resource);
+					hasSkills = true;
+				}
+				catch (Exception ex) {
+					// No skills at this prefix — expected when no SkillsJars on classpath
+					log.debug("No classpath skills at {}: {}", prefix, ex.getMessage());
+				}
+			}
+
+			if (hasSkills) {
+				try {
+					directCallbacks.add(skillsBuilder.build());
+				}
+				catch (IllegalArgumentException ex) {
+					// No SKILL.md files found in any source — skip silently
+					log.debug("SkillsTool skipped: {}", ex.getMessage());
+				}
+			}
+		}
+
 		// Convert @Tool annotated objects to ToolCallbacks and merge with direct
 		// callbacks
 		var annotatedCallbacks = ToolCallbacks.from(annotatedToolObjects.toArray());
@@ -139,6 +188,9 @@ public class MiniAgent {
 		// Wrap listener in counting listener for toolCallsExecuted tracking
 		ToolCallListener baseListener = builder.toolCallListener != null ? builder.toolCallListener
 				: new LoggingToolCallListener();
+		if (builder.journalRun != null) {
+			baseListener = new CompositeToolCallListener(baseListener, new JournalToolCallListener(builder.journalRun));
+		}
 		this.countingListener = new CountingToolCallListener(baseListener);
 
 		// Wire observability: ObservationRegistry -> ToolCallObservationHandler ->
@@ -195,8 +247,17 @@ public class MiniAgent {
 			advisorBuilder.listener(new CallbackLoopListener(builder.agentCallback));
 		}
 
-		if (builder.compactionModel != null) {
-			advisorBuilder.compactionModel(builder.compactionModel);
+		if (builder.journalRun != null) {
+			advisorBuilder.listener(new JournalLoopListener(builder.journalRun));
+		}
+
+		for (var loopListener : builder.loopListeners) {
+			advisorBuilder.listener(loopListener);
+		}
+
+		if (builder.compactionModelName != null) {
+			advisorBuilder.chatModel(builder.model);
+			advisorBuilder.compactionModelName(builder.compactionModelName);
 		}
 		advisorBuilder.contextLimit(builder.contextLimit);
 		advisorBuilder.compactionThreshold(builder.compactionThreshold);
@@ -333,6 +394,13 @@ public class MiniAgent {
 		return interactive;
 	}
 
+	/**
+	 * Returns the names of all registered tools.
+	 */
+	public List<String> toolNames() {
+		return tools.stream().map(cb -> cb.getToolDefinition().name()).toList();
+	}
+
 	private long extractTokens(ChatResponse r) {
 		if (r == null || r.getMetadata() == null || r.getMetadata().getUsage() == null)
 			return 0;
@@ -376,11 +444,15 @@ public class MiniAgent {
 
 		private java.time.Duration timeout;
 
-		private ChatModel compactionModel;
+		private String compactionModelName;
 
 		private int contextLimit = 200_000;
 
 		private double compactionThreshold = 0.5;
+
+		private Run journalRun;
+
+		private final List<AgentLoopListener> loopListeners = new ArrayList<>();
 
 		private Builder() {
 		}
@@ -477,11 +549,11 @@ public class MiniAgent {
 		}
 
 		/**
-		 * Set the model used for context compaction (summarizing old messages when
-		 * context gets large). If null (default), compaction is disabled.
+		 * Set the model name used for context compaction. Uses the primary chat model
+		 * with a per-request model override. If null (default), compaction is disabled.
 		 */
-		public Builder compactionModel(ChatModel compactionModel) {
-			this.compactionModel = compactionModel;
+		public Builder compactionModelName(String compactionModelName) {
+			this.compactionModelName = compactionModelName;
 			return this;
 		}
 
@@ -499,6 +571,24 @@ public class MiniAgent {
 		 */
 		public Builder compactionThreshold(double compactionThreshold) {
 			this.compactionThreshold = compactionThreshold;
+			return this;
+		}
+
+		/**
+		 * Set a journal Run to record tool calls and loop events. When set, a
+		 * {@link JournalToolCallListener} and {@link JournalLoopListener} are
+		 * automatically wired in alongside any existing listeners.
+		 */
+		public Builder journalRun(Run journalRun) {
+			this.journalRun = journalRun;
+			return this;
+		}
+
+		/**
+		 * Add a loop listener for agent loop events (turn tracking, completion).
+		 */
+		public Builder loopListener(AgentLoopListener listener) {
+			this.loopListeners.add(listener);
 			return this;
 		}
 
