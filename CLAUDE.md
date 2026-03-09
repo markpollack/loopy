@@ -77,6 +77,7 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 | `/boot-new` | Scaffold a new Spring Boot project from a bundled template |
 | `/starters` | Discover Agent Starters; suggest by pom.xml triggers |
 | `/boot-add` | Bootstrap domain capabilities (Agent Starter) into existing project |
+| `/boot-modify` | Apply structural modifications (set java version, clean pom, add native support, etc.) |
 | `/forge-agent` | Bootstrap an agent experiment project from a brief |
 
 ### Key Design Decisions
