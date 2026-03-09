@@ -129,7 +129,7 @@ public class LoopyCommand implements Callable<Integer> {
 		}
 
 		LogoScreen logo = new LogoScreen(chatScreenFactory);
-		Program program = new Program(logo).withAltScreen();
+		Program program = new Program(logo);
 		program.run();
 
 		if (journalRun != null) {
