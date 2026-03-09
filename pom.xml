@@ -103,6 +103,13 @@
             <groupId>com.williamcallahan</groupId>
             <artifactId>tui4j</artifactId>
             <version>${tui4j.version}</version>
+            <exclusions>
+                <!-- Exclude JNI native loader: avoids restricted method warnings on Java 21+ -->
+                <exclusion>
+                    <groupId>org.jline</groupId>
+                    <artifactId>jline-native</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Community Tools (FileSystemTools, GlobTool, GrepTool, etc.) -->
