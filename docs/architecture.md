@@ -4,7 +4,7 @@ Loopy is a single Maven module organized into four layers. Each layer has a clea
 
 ```
 io.github.markpollack.loopy
-├── agent/    Agent loop, tool execution, observability
+├── agent/    Agent loop, tool execution, skills, observability
 ├── tui/      Terminal UI (Elm Architecture)
 ├── command/  Slash command framework
 └── forge/    Project scaffolding
@@ -14,14 +14,17 @@ io.github.markpollack.loopy
 
 ### Agent Layer (`agent/`)
 
-The core agent loop, based on MiniAgent — a standalone agent implementation derived from [agent-harness](https://github.com/markpollack/agent-harness) and built on the [Claude Agent SDK for Java](https://github.com/anthropics/claude-agent-sdk-java), evolving independently within Loopy.
+The core agent loop, based on MiniAgent — a standalone agent implementation derived from [agent-harness](https://github.com/markpollack/agent-harness), built on Spring AI's `ChatClient` + `ToolCallAdvisor`, evolving independently within Loopy.
 
 **Key components:**
 - `MiniAgent` — Runs the think-act-observe loop: send messages to the LLM, receive tool calls, execute tools, feed results back
 - `MiniAgentConfig` — Configuration (working directory, max turns, system prompt, timeouts)
 - `AgentLoopAdvisor` — Spring AI advisor that wraps the tool-calling loop with observability and cost tracking
 - `BashTool` — Executes shell commands in the agent's working directory
+- `SkillsTool` — Progressive skill discovery: shows skill names/descriptions, loads full content on demand
 - `ConsoleToolCallListener` — Prints tool call activity to stderr (for print/REPL modes)
+
+**Skills discovery:** MiniAgent scans three sources for `SKILL.md` files — project (`.claude/skills/`), global (`~/.claude/skills/`), and classpath (`META-INF/skills/` in JARs). Skills use progressive disclosure to minimize token usage.
 
 **Design choice:** MiniAgent is embedded (vendored), not a Maven dependency. This avoids pulling in transitive dependencies from agent-harness and lets Loopy's agent evolve independently. ArchUnit rules in `ArchitectureTest` enforce that no upstream imports leak in.
 
@@ -44,7 +47,7 @@ Slash command framework for deterministic operations that don't need the LLM.
 - `SlashCommand` — Interface with `name()`, `execute(args, context)`, and `description()`
 - `SlashCommandRegistry` — Maps `/name` to command instances, handles dispatch
 - `CommandContext` — Carries working directory and session-clear callback
-- Built-in commands: `HelpCommand`, `ClearCommand`, `QuitCommand`
+- Built-in commands: `HelpCommand`, `ClearCommand`, `QuitCommand`, `SkillsCommand`
 
 **Interception point:** `ChatScreen.submitInput()` checks for `/` prefix and dispatches to the registry before the input reaches MiniAgent. This is deterministic — no LLM tokens consumed for slash commands.
 
@@ -73,7 +76,7 @@ User Input
                               │
                               ├── Build messages (system prompt + history + user input)
                               │
-                              ├── Send to Anthropic API (ChatModel)
+                              ├── Send to LLM provider (ChatModel — Anthropic, OpenAI, or Gemini)
                               │
                               ├── Receive response
                               │   ├── Text only ──► Return result
