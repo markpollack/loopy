@@ -43,6 +43,10 @@ Requires API key for selected provider: `ANTHROPIC_API_KEY` (default), `OPENAI_A
 Core complete — Spring Boot 4.0.3 adoption, multi-provider (Anthropic/OpenAI/Gemini), cost visibility, context compaction, agent observability (journal-core, debug logging). Skills complete (SkillsTool wired, `/skills` command, curated catalog with 23 skills, search/add/remove).
 **Source of truth**: `plans/ROADMAP.md` — main roadmap + index to feature roadmaps.
 **Boot scaffolding roadmap**: `plans/roadmap-boot.md` — Wave 2 priority #1: `/boot-new`, `/boot-add`, `/starters`, `/boot-modify`
+- `harness-patterns:0.9.0-SNAPSHOT` dep (not copy) — graph classes in `io.github.markpollack.harness.patterns.graph`
+- `FunctionGraphNode` for all LLM nodes — MiniAgent evolved past AgentLoop, backport is future work
+- Text-based package rename for genesis (TemplateCustomizer pattern) — JavaParser deferred to experiment phase
+- MiniAgent grow cycle = Stage 7 (Agent Quality): terminal-bench baseline 32/35, grow via experiment-driver, backport to agent-harness
 **Skills roadmap**: `plans/roadmap-skills.md`
 **Protocol stack roadmaps**: `plans/roadmap-mcp.md`, `plans/roadmap-acp.md`, `plans/roadmap-a2a.md`.
 
