@@ -51,14 +51,22 @@ public class LoopyConfig {
 		String envVar = envVarFor(provider);
 		String springProp = springPropertyFor(provider);
 
-		// 1. Already in environment
+		// 1. Already in environment (exported vars)
 		String key = System.getenv(envVar);
 		if (key != null && !key.isBlank()) {
 			System.setProperty(springProp, key);
 			return;
 		}
 
-		// 2. Saved in config file
+		// 2. ~/.env (KEY=value without export — common dotenv format)
+		Map<String, String> dotenv = parseDotEnv(Path.of(System.getProperty("user.home"), ".env"));
+		key = dotenv.get(envVar);
+		if (key != null && !key.isBlank()) {
+			System.setProperty(springProp, key);
+			return;
+		}
+
+		// 3. Saved in config file
 		Map<String, String> saved = load();
 		key = saved.get(envVar);
 		if (key != null && !key.isBlank()) {
@@ -66,7 +74,7 @@ public class LoopyConfig {
 			return;
 		}
 
-		// 3. Prompt the user
+		// 4. Prompt the user
 		key = promptForKey(provider, envVar);
 		if (key != null && !key.isBlank()) {
 			saved.put(envVar, key);
@@ -95,6 +103,45 @@ public class LoopyConfig {
 		catch (IOException ex) {
 			return null;
 		}
+	}
+
+	/**
+	 * Parses a dotenv-style file ({@code KEY=value} or {@code export KEY=value} lines).
+	 * Handles single and double quoted values. Silently returns empty map if unreadable.
+	 */
+	static Map<String, String> parseDotEnv(Path file) {
+		Map<String, String> result = new LinkedHashMap<>();
+		if (!Files.isRegularFile(file)) {
+			return result;
+		}
+		try {
+			for (String line : Files.readAllLines(file)) {
+				line = line.strip();
+				if (line.isEmpty() || line.startsWith("#")) {
+					continue;
+				}
+				// Strip optional leading "export "
+				if (line.startsWith("export ")) {
+					line = line.substring(7).stripLeading();
+				}
+				int eq = line.indexOf('=');
+				if (eq <= 0) {
+					continue;
+				}
+				String k = line.substring(0, eq).strip();
+				String v = line.substring(eq + 1).strip();
+				// Strip surrounding quotes
+				if (v.length() >= 2
+						&& ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'")))) {
+					v = v.substring(1, v.length() - 1);
+				}
+				result.put(k, v);
+			}
+		}
+		catch (IOException ex) {
+			// Silently ignore
+		}
+		return result;
 	}
 
 	static Map<String, String> load() {
