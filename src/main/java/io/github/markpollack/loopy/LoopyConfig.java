@@ -41,6 +41,26 @@ public class LoopyConfig {
 	}
 
 	/**
+	 * Returns true if an API key is available for the given provider (env, dotenv, or
+	 * saved config). Does not prompt the user.
+	 */
+	static boolean hasKey(String provider) {
+		String envVar = envVarFor(provider);
+		String key = System.getenv(envVar);
+		if (key != null && !key.isBlank()) {
+			return true;
+		}
+		Map<String, String> dotenv = parseDotEnv(Path.of(System.getProperty("user.home"), ".env"));
+		key = dotenv.get(envVar);
+		if (key != null && !key.isBlank()) {
+			return true;
+		}
+		Map<String, String> saved = load();
+		key = saved.get(envVar);
+		return key != null && !key.isBlank();
+	}
+
+	/**
 	 * Ensures an API key is available for the given provider. Checks (in order): 1.
 	 * Environment variable 2. {@code ~/.config/loopy/config} 3. Interactive prompt (saved
 	 * to config for future runs)

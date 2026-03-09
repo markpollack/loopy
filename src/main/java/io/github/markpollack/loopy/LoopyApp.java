@@ -45,6 +45,9 @@ public class LoopyApp implements CommandLineRunner {
 		// Ensure API key is available before Spring AI auto-configures the ChatModel
 		LoopyConfig.ensureApiKey(provider);
 
+		// Hint about other available providers (shown once at startup)
+		printProviderNotice(provider);
+
 		SpringApplication.run(LoopyApp.class, args);
 	}
 
@@ -58,6 +61,19 @@ public class LoopyApp implements CommandLineRunner {
 			}
 		}
 		return defaultValue;
+	}
+
+	private static void printProviderNotice(String activeProvider) {
+		java.util.List<String> others = new java.util.ArrayList<>();
+		for (String p : java.util.List.of("anthropic", "openai", "google-genai")) {
+			if (!p.equals(activeProvider) && LoopyConfig.hasKey(p)) {
+				others.add(p + " (" + LoopyConfig.envVarFor(p) + ")");
+			}
+		}
+		if (!others.isEmpty()) {
+			System.err.println("Using " + activeProvider + "  •  Also found: " + String.join(", ", others)
+					+ "  (--provider to switch)");
+		}
 	}
 
 	private static boolean hasFlag(String[] args, String name) {

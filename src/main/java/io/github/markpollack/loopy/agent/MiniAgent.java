@@ -31,6 +31,7 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.model.tool.DefaultToolCallingManager;
@@ -78,6 +79,9 @@ public class MiniAgent {
 	private final boolean interactive;
 
 	private final String conversationId;
+
+	/** Per-request model override — null means use the ChatModel's default. */
+	private volatile String modelOverride;
 
 	private MiniAgent(Builder builder) {
 		this.config = builder.config;
@@ -280,6 +284,9 @@ public class MiniAgent {
 		}
 
 		this.chatClient = chatClientBuilder.build();
+
+		// Initialise model override from builder if provided
+		this.modelOverride = builder.modelName;
 	}
 
 	/**
@@ -298,11 +305,13 @@ public class MiniAgent {
 			String systemPromptWithWorkdir = config.systemPrompt() + "\n\nYour working directory is: "
 					+ config.workingDirectory().toAbsolutePath();
 
-			ChatResponse response = chatClient.prompt()
-				.system(systemPromptWithWorkdir)
-				.user(task)
-				.call()
-				.chatResponse();
+			var requestSpec = chatClient.prompt().system(systemPromptWithWorkdir).user(task);
+			String override = this.modelOverride;
+			if (override != null) {
+				requestSpec = requestSpec.options(ChatOptions.builder().model(override).build());
+			}
+
+			ChatResponse response = requestSpec.call().chatResponse();
 
 			String output = extractText(response);
 			int toolCalls = countingListener.getToolCallCount();
@@ -368,6 +377,17 @@ public class MiniAgent {
 			callback.onComplete();
 		}
 		return result;
+	}
+
+	/**
+	 * Switch the model used for inference. Applies as a per-request {@link ChatOptions}
+	 * override — the underlying {@link ChatModel} and advisors remain unchanged.
+	 * @param model model identifier (e.g. "claude-haiku-4-5-20251001"), or null to revert
+	 * to the ChatModel's default
+	 */
+	public void setModelOverride(String model) {
+		this.modelOverride = model;
+		log.debug("Model override set to: {}", model);
 	}
 
 	/**

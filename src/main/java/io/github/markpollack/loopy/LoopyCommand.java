@@ -15,6 +15,7 @@ import io.github.markpollack.loopy.agent.MiniAgentConfig;
 import io.github.markpollack.loopy.command.ClearCommand;
 import io.github.markpollack.loopy.command.CommandContext;
 import io.github.markpollack.loopy.command.HelpCommand;
+import io.github.markpollack.loopy.command.ModelCommand;
 import io.github.markpollack.loopy.command.QuitCommand;
 import io.github.markpollack.loopy.command.SkillsCommand;
 import io.github.markpollack.loopy.command.SlashCommandRegistry;
@@ -108,10 +109,14 @@ public class LoopyCommand implements Callable<Integer> {
 		}
 
 		// Build slash command registry
-		SlashCommandRegistry registry = createCommandRegistry(this.chatModel);
-		Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
+		String activeProvider = this.provider != null ? this.provider : "anthropic";
 		final MiniAgent finalAgent = agent;
+		ModelCommand modelCommand = new ModelCommand(activeProvider,
+				this.model != null ? this.model : defaultModelFor(activeProvider));
+		SlashCommandRegistry registry = createCommandRegistry(this.chatModel, modelCommand);
+		Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
 		CommandContext ctx = new CommandContext(workDir, finalAgent != null ? finalAgent::clearSession : () -> {
+		}, finalAgent != null ? finalAgent::setModelOverride : model -> {
 		});
 
 		java.util.function.Supplier<Model> chatScreenFactory;
@@ -120,12 +125,12 @@ public class LoopyCommand implements Callable<Integer> {
 				var result = finalAgent.run(text);
 				String output = result.output() != null ? result.output() : "[" + result.status() + "]";
 				return output + "\n" + formatCost(result);
-			}, (input, ignored) -> registry.dispatch(input, ctx));
+			}, (input, ignored) -> registry.dispatch(input, ctx), modelCommand::getActiveModel);
 		}
 		else {
 			// Echo mode when no API key (for testing)
 			chatScreenFactory = () -> new ChatScreen((text) -> "You said: " + text,
-					(input, ignored) -> registry.dispatch(input, ctx));
+					(input, ignored) -> registry.dispatch(input, ctx), modelCommand::getActiveModel);
 		}
 
 		LogoScreen logo = new LogoScreen(chatScreenFactory);
@@ -181,11 +186,14 @@ public class LoopyCommand implements Callable<Integer> {
 				PrintWriter writer = new PrintWriter(System.out, true);
 				Run journalRun = startJournalRun()) {
 
-			MiniAgent agent = null;
-			SlashCommandRegistry registry = createCommandRegistry(this.chatModel);
+			MiniAgent[] agentRef = { null };
+			String activeProvider = this.provider != null ? this.provider : "anthropic";
+			ModelCommand modelCommand = new ModelCommand(activeProvider,
+					this.model != null ? this.model : defaultModelFor(activeProvider));
+			SlashCommandRegistry registry = createCommandRegistry(this.chatModel, modelCommand);
 			Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
 
-			writer.println("Loopy REPL — type /help for commands, /quit to exit");
+			writer.println("Loopy REPL — type /help for commands, /exit to quit");
 			writer.println();
 
 			while (true) {
@@ -204,7 +212,9 @@ public class LoopyCommand implements Callable<Integer> {
 
 				// Slash command dispatch
 				if (line.startsWith("/")) {
+					MiniAgent agent = agentRef[0];
 					CommandContext ctx = new CommandContext(workDir, agent != null ? agent::clearSession : () -> {
+					}, agent != null ? agent::setModelOverride : m -> {
 					});
 					var cmdResult = registry.dispatch(line, ctx);
 					if (cmdResult.isPresent()) {
@@ -218,9 +228,9 @@ public class LoopyCommand implements Callable<Integer> {
 				}
 
 				// Lazy agent creation
-				if (agent == null) {
+				if (agentRef[0] == null) {
 					try {
-						agent = createAgent(this.chatModel, true, true, journalRun);
+						agentRef[0] = createAgent(this.chatModel, true, true, journalRun);
 					}
 					catch (Exception ex) {
 						writer.println("Error creating agent: " + ex.getMessage());
@@ -230,7 +240,7 @@ public class LoopyCommand implements Callable<Integer> {
 
 				try {
 					System.err.println("Thinking...");
-					var result = agent.run(line);
+					var result = agentRef[0].run(line);
 					System.err.println();
 					if (result.output() != null) {
 						writer.println(result.output());
@@ -255,10 +265,11 @@ public class LoopyCommand implements Callable<Integer> {
 		}
 	}
 
-	private SlashCommandRegistry createCommandRegistry(@Nullable ChatModel chatModel) {
+	private SlashCommandRegistry createCommandRegistry(@Nullable ChatModel chatModel, ModelCommand modelCommand) {
 		SlashCommandRegistry registry = new SlashCommandRegistry();
 		registry.register(new HelpCommand(registry));
 		registry.register(new ClearCommand());
+		registry.register(modelCommand);
 		registry.register(new SkillsCommand());
 		registry.register(new ForgeAgentCommand(chatModel));
 		registry.register(new QuitCommand());
@@ -293,6 +304,11 @@ public class LoopyCommand implements Callable<Integer> {
 
 		var builder = MiniAgent.builder().config(config).model(chatModel);
 
+		// Apply model override from -m flag (also used for cost estimation)
+		if (this.model != null) {
+			builder.modelName(this.model);
+		}
+
 		// Enable compaction with a cheap model from the same provider
 		String compactionModel = resolveCompactionModel();
 		if (compactionModel != null) {
@@ -316,6 +332,14 @@ public class LoopyCommand implements Callable<Integer> {
 		}
 
 		return builder.build();
+	}
+
+	private static String defaultModelFor(String provider) {
+		return switch (provider) {
+			case "openai" -> "gpt-4.1";
+			case "google-genai" -> "gemini-2.5-flash";
+			default -> "claude-sonnet-4-6";
+		};
 	}
 
 	private String resolveCompactionModel() {

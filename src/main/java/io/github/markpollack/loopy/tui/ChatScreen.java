@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static com.williamcallahan.tui4j.compat.bubbletea.Command.batch;
 
@@ -60,6 +61,8 @@ public class ChatScreen implements Model {
 
 	private final BiFunction<String, Object, Optional<String>> commandDispatcher;
 
+	private final Supplier<String> modelSupplier;
+
 	private boolean waiting;
 
 	private Spinner spinner;
@@ -70,24 +73,40 @@ public class ChatScreen implements Model {
 	 * Creates a ChatScreen with echo mode and no command dispatcher (for testing).
 	 */
 	public ChatScreen() {
-		this((text) -> "You said: " + text, null);
+		this((text) -> "You said: " + text, null, null);
 	}
 
 	/**
-	 * Creates a ChatScreen with the given agent function and optional command dispatcher.
+	 * Creates a ChatScreen with the given agent function and optional command dispatcher
+	 * (for testing — no model display).
 	 * @param agentFunction function that sends input to MiniAgent and returns response
 	 * @param commandDispatcher slash command dispatcher: (input, context) →
 	 * Optional(result). Null means no slash command support.
 	 */
 	public ChatScreen(Function<String, String> agentFunction,
 			BiFunction<String, Object, Optional<String>> commandDispatcher) {
+		this(agentFunction, commandDispatcher, null);
+	}
+
+	/**
+	 * Creates a ChatScreen with the given agent function, command dispatcher, and model
+	 * supplier.
+	 * @param agentFunction function that sends input to MiniAgent and returns response
+	 * @param commandDispatcher slash command dispatcher: (input, context) →
+	 * Optional(result). Null means no slash command support.
+	 * @param modelSupplier supplier for the active model name shown in the hint line.
+	 * Null means no model display.
+	 */
+	public ChatScreen(Function<String, String> agentFunction,
+			BiFunction<String, Object, Optional<String>> commandDispatcher, Supplier<String> modelSupplier) {
 		this.history = new ArrayList<>();
 		this.agentFunction = agentFunction;
 		this.commandDispatcher = commandDispatcher;
+		this.modelSupplier = modelSupplier;
 		this.waiting = false;
 		this.spinner = new Spinner(SpinnerType.DOT);
 		this.input = new TextInput();
-		this.input.setPrompt("❯ ");
+		this.input.setPrompt("∞❯ ");
 		this.input.setPlaceholder("Type a message...");
 		this.input.setCharLimit(4000);
 		this.input.focus();
@@ -245,7 +264,14 @@ public class ChatScreen implements Model {
 
 		// Hint line (right-aligned, only when not waiting)
 		if (!waiting) {
-			String hintText = "/ commands  •  /exit to quit";
+			String modelPart = "";
+			if (modelSupplier != null) {
+				String m = modelSupplier.get();
+				if (m != null && !m.isBlank()) {
+					modelPart = m + "  •  ";
+				}
+			}
+			String hintText = modelPart + "/ commands  •  /exit to quit";
 			int padding = Math.max(0, termWidth - hintText.length());
 			sb.append(" ".repeat(padding)).append(HINT_STYLE.render(hintText)).append("\n");
 		}
