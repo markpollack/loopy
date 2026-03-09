@@ -75,6 +75,7 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 | `/quit` | Exit Loopy |
 | `/skills` | Discover, search, install, remove domain skills |
 | `/boot-new` | Scaffold a new Spring Boot project from a bundled template |
+| `/starters` | Discover Agent Starters; suggest by pom.xml triggers |
 | `/forge-agent` | Bootstrap an agent experiment project from a brief |
 
 ### Key Design Decisions
