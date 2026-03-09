@@ -60,7 +60,7 @@ Single-module CLI with four layers:
 - **TUI layer** (`tui/`) — ChatScreen (Elm Architecture via tui4j), ChatEntry — `io.github.markpollack.loopy.tui`
 - **Command layer** (`command/`) — SlashCommand interface, SlashCommandRegistry, HelpCommand, ClearCommand — `io.github.markpollack.loopy.command`
 - **Forge layer** (`forge/`) — ExperimentBrief, TemplateCloner, TemplateCustomizer, ForgeAgentCommand — `io.github.markpollack.loopy.forge`
-- **Boot layer** (`boot/`) — `/boot-new`, `/boot-add`, `/starters`, `/boot-modify` — Spring Boot scaffolding via `harness-patterns` `GraphCompositionStrategy` — `io.github.markpollack.loopy.boot`
+- **Boot layer** (`boot/`) — `/boot-new`, `/starters`, `/boot-add`, `/boot-modify` — Spring Boot scaffolding + SAE analysis (`BootProjectAnalyzer` → `PROJECT-ANALYSIS.md`) — `io.github.markpollack.loopy.boot`
 
 User input starting with `/` is intercepted by the command layer before reaching MiniAgent. Everything else flows through MiniAgent's agent loop (think → tool-call → observe).
 
