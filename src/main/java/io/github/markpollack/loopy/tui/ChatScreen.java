@@ -5,6 +5,7 @@ import com.williamcallahan.tui4j.compat.bubbletea.KeyPressMessage;
 import com.williamcallahan.tui4j.compat.bubbletea.Message;
 import com.williamcallahan.tui4j.compat.bubbletea.Model;
 import com.williamcallahan.tui4j.compat.bubbletea.UpdateResult;
+import com.williamcallahan.tui4j.compat.bubbletea.WindowSizeMessage;
 import com.williamcallahan.tui4j.compat.bubbletea.bubbles.textinput.TextInput;
 import com.williamcallahan.tui4j.compat.bubbletea.input.key.KeyAliases;
 import com.williamcallahan.tui4j.compat.bubbletea.input.key.KeyAliases.KeyAlias;
@@ -12,6 +13,8 @@ import com.williamcallahan.tui4j.compat.bubbletea.message.QuitMessage;
 import com.williamcallahan.tui4j.compat.bubbles.spinner.Spinner;
 import com.williamcallahan.tui4j.compat.bubbles.spinner.SpinnerType;
 import com.williamcallahan.tui4j.compat.bubbles.spinner.TickMessage;
+import com.williamcallahan.tui4j.compat.lipgloss.Style;
+import com.williamcallahan.tui4j.compat.lipgloss.color.Color;
 
 import io.github.markpollack.loopy.command.QuitCommand;
 
@@ -32,6 +35,12 @@ import static com.williamcallahan.tui4j.compat.bubbletea.Command.batch;
  * thread via tui4j's Command thunk pattern.
  */
 public class ChatScreen implements Model {
+
+	private static final Style BORDER_STYLE = Style.newStyle().faint(true);
+
+	private static final Style HINT_STYLE = Style.newStyle().foreground(Color.color("#565F89"));
+
+	private static final Style SPINNER_STYLE = Style.newStyle().foreground(Color.color("#7AA2F7"));
 
 	// --- Private async Message types ---
 
@@ -55,6 +64,8 @@ public class ChatScreen implements Model {
 
 	private Spinner spinner;
 
+	private int termWidth = 80;
+
 	/**
 	 * Creates a ChatScreen with echo mode and no command dispatcher (for testing).
 	 */
@@ -76,7 +87,7 @@ public class ChatScreen implements Model {
 		this.waiting = false;
 		this.spinner = new Spinner(SpinnerType.DOT);
 		this.input = new TextInput();
-		this.input.setPrompt("∞> ");
+		this.input.setPrompt("❯ ");
 		this.input.setPlaceholder("Type a message...");
 		this.input.setCharLimit(4000);
 		this.input.focus();
@@ -102,6 +113,12 @@ public class ChatScreen implements Model {
 			}
 			UpdateResult<? extends Model> r = spinner.update(msg);
 			return UpdateResult.from(this, r.command());
+		}
+
+		if (msg instanceof WindowSizeMessage w) {
+			this.termWidth = Math.max(40, w.width());
+			this.input.setWidth(this.termWidth - 4);
+			return UpdateResult.from(this);
 		}
 
 		if (msg instanceof KeyPressMessage keyPress) {
@@ -206,13 +223,29 @@ public class ChatScreen implements Model {
 		}
 		sb.append("\n");
 
-		// Status line (spinner while waiting)
+		// Separator line — shows spinner inline when thinking
 		if (waiting) {
-			sb.append(spinner.view()).append(" Thinking...\n\n");
+			String spinnerStr = SPINNER_STYLE.render(spinner.view());
+			String thinkingStr = BORDER_STYLE.render(" Thinking... ");
+			int fixedLen = spinner.view().length() + " Thinking... ".length();
+			int dashLen = Math.max(0, termWidth - fixedLen);
+			String dashes = BORDER_STYLE.render("─".repeat(dashLen));
+			sb.append(spinnerStr).append(thinkingStr).append(dashes);
 		}
+		else {
+			sb.append(BORDER_STYLE.render("─".repeat(termWidth)));
+		}
+		sb.append("\n");
 
-		// Input prompt
+		// Input
 		sb.append(this.input.view()).append("\n");
+
+		// Hint line (right-aligned, only when not waiting)
+		if (!waiting) {
+			String hintText = "/ commands  •  /exit to quit";
+			int padding = Math.max(0, termWidth - hintText.length());
+			sb.append(" ".repeat(padding)).append(HINT_STYLE.render(hintText)).append("\n");
+		}
 
 		return sb.toString();
 	}
