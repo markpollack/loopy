@@ -212,10 +212,7 @@ public class ChatScreen implements Model {
 		}
 
 		// Input prompt
-		sb.append(this.input.view()).append("\n\n");
-
-		// Help text
-		sb.append("Press Enter to send, Ctrl+C to quit.\n");
+		sb.append(this.input.view()).append("\n");
 
 		return sb.toString();
 	}
