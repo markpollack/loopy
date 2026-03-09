@@ -130,7 +130,12 @@ public class LoopyCommand implements Callable<Integer> {
 
 		LogoScreen logo = new LogoScreen(chatScreenFactory);
 		Program program = new Program(logo);
-		program.run();
+		try {
+			program.run();
+		}
+		catch (Exception ex) {
+			// Ignore terminal teardown exceptions on exit (e.g. JLine cleanup)
+		}
 
 		if (journalRun != null) {
 			journalRun.close();

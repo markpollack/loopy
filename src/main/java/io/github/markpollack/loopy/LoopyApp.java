@@ -42,6 +42,9 @@ public class LoopyApp implements CommandLineRunner {
 			System.setProperty("logging.level.root", "WARN");
 		}
 
+		// Ensure API key is available before Spring AI auto-configures the ChatModel
+		LoopyConfig.ensureApiKey(provider);
+
 		SpringApplication.run(LoopyApp.class, args);
 	}
 
