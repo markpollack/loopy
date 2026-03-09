@@ -35,7 +35,7 @@ public class JavaParserRefactor {
 	private static final Logger logger = LoggerFactory.getLogger(JavaParserRefactor.class);
 
 	private final JavaParser parser = new JavaParser(
-			new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21));
+			new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_25));
 
 	/**
 	 * Rename all occurrences of {@code fromPackage} to {@code toPackage} in the given

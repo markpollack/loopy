@@ -93,7 +93,7 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 - `spring-ai-agent-utils` 0.5.0-SNAPSHOT — Community tools (FileSystemTools, GlobTool, GrepTool, AskUserQuestionTool, TodoWriteTool, TaskTool)
 - `journal-core` 1.0.1-SNAPSHOT — Structured agent run/event tracking (`io.github.markpollack:journal-core`)
 - `harness-patterns` 0.9.0-SNAPSHOT — Graph composition for boot scaffolding (`GraphCompositionStrategy`, `FunctionGraphNode`, `GraphContext`). Source: `~/projects/agent-harness/harness-patterns/`. Install: `cd ~/projects/agent-harness && JAVA_HOME=~/.sdkman/candidates/java/21.0.9-librca ./mvnw install -DskipTests`
-- `javaparser-core` 3.27.0 — Deterministic package rename in `/boot-new`. Configured at `JAVA_21`. Supports Java 1.0–25. Must be declared explicitly — NOT transitive.
+- `javaparser-core` 3.28.0 — Deterministic package rename in `/boot-new`. Configured at `JAVA_25`. Supports Java 1.0–25. Must be declared explicitly — NOT transitive.
 - `spring-ai-starter-model-anthropic` — Anthropic auto-config (Spring AI 2.0-M2 / Spring Boot 4.0.3)
 - `spring-ai-starter-model-openai` — OpenAI auto-config
 - `spring-ai-starter-model-google-genai` — Google Gemini auto-config
