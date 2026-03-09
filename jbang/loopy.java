@@ -1,7 +1,7 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //JAVA 21
 //REPOS mavenlocal
-//DEPS io.github.markpollack:loopy:0.1.0-SNAPSHOT
+//DEPS io.github.markpollack:loopy:0.2.0-SNAPSHOT
 
 import io.github.markpollack.loopy.LoopyApp;
 

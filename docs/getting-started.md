@@ -4,33 +4,21 @@ This guide walks you through installing Loopy, setting up your API key, and runn
 
 ## Installation
 
-### Option 1: JBang (recommended)
+### Option 1: Fat JAR (recommended)
 
-[JBang](https://www.jbang.dev/) lets you run Loopy without building anything:
-
-```bash
-# Install JBang if you don't have it
-curl -Ls https://sh.jbang.dev | bash -s - app setup
-
-# Run Loopy
-jbang loopy@markpollack/loopy
-```
-
-### Option 2: Fat JAR
-
-Download `loopy-0.1.0-SNAPSHOT.jar` from the [releases page](https://github.com/markpollack/loopy/releases) and run:
+Download `loopy-0.2.0-SNAPSHOT.jar` from the [releases page](https://github.com/markpollack/loopy/releases) and run:
 
 ```bash
-java -jar loopy-0.1.0-SNAPSHOT.jar
+java -jar loopy-0.2.0-SNAPSHOT.jar
 ```
 
-### Option 3: Build from source
+### Option 2: Build from source
 
 ```bash
 git clone https://github.com/markpollack/loopy.git
 cd loopy
 ./mvnw package -DskipTests
-java -jar target/loopy-0.1.0-SNAPSHOT.jar
+java -jar target/loopy-0.2.0-SNAPSHOT.jar
 ```
 
 ## Prerequisites
@@ -50,24 +38,27 @@ curl -s "https://get.sdkman.io" | bash
 sdk install java 21.0.9-librca
 ```
 
-### Anthropic API Key
+### API Key
 
-Loopy uses Anthropic's Claude models. You need an API key:
+Loopy supports three providers. Set the key for your preferred provider:
 
-1. Go to [console.anthropic.com](https://console.anthropic.com/)
-2. Create an account or sign in
-3. Navigate to **API Keys** and create a new key
-4. Set the environment variable:
+| Provider | Variable | Get a key |
+|----------|----------|-----------|
+| Anthropic (default) | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com/) |
+| OpenAI | `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com/) |
+| Google Gemini | `GOOGLE_API_KEY` | [aistudio.google.com](https://aistudio.google.com/) |
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-api03-...
 ```
 
-Add this to your shell profile (`~/.bashrc`, `~/.zshrc`, or `~/.profile`) so it persists:
+Add this to your shell profile (`~/.bashrc`, `~/.zshrc`, or `~/.profile`) so it persists.
+
+To use a non-default provider:
 
 ```bash
-echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.bashrc
-source ~/.bashrc
+loopy --provider openai
+loopy --provider google-genai
 ```
 
 **Without an API key**, Loopy's TUI launches in echo mode — useful for testing the interface and slash commands, but the agent won't process tasks.
@@ -111,15 +102,16 @@ loopy -d ~/projects/other-app
 
 ### Model Selection
 
-The default model is `claude-sonnet-4-20250514`. Switch with `-m`:
+The default model depends on the provider. Override with `-m`:
 
 ```bash
 loopy -m claude-haiku-4-5-20251001
+loopy --provider openai -m gpt-4o-mini
 ```
 
 ### CLAUDE.md Context
 
-Loopy's embedded agent (via [Claude Agent SDK for Java](https://github.com/anthropics/claude-agent-sdk-java)) automatically reads `CLAUDE.md` from the working directory and includes it in the agent's system prompt. This is the same convention used by Claude Code — put project-specific instructions, architecture notes, or coding conventions in `CLAUDE.md` and the agent will follow them.
+Loopy automatically reads `CLAUDE.md` from the working directory and includes it in the agent's system prompt. This is the same convention used by Claude Code — put project-specific instructions, architecture notes, or coding conventions in `CLAUDE.md` and the agent will follow them.
 
 ## Next Steps
 

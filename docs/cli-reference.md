@@ -11,9 +11,12 @@ loopy [OPTIONS]
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-d, --directory <path>` | Set the agent's working directory | Current directory |
-| `-m, --model <name>` | Anthropic model ID | `claude-sonnet-4-20250514` |
+| `-m, --model <name>` | Model ID | Per-provider (see [Configuration](configuration.md)) |
 | `-t, --max-turns <n>` | Maximum agent loop iterations per task | `20` |
 | `-p, --print <prompt>` | Run a single task and exit (print mode) | — |
+| `--provider <name>` | AI provider: `anthropic`, `openai`, `google-genai` | `anthropic` |
+| `--base-url <url>` | Custom API base URL (for vLLM, LM Studio, etc.) | — |
+| `--debug` | Verbose agent activity (turns, tool calls, cost) on stderr | — |
 | `--repl` | Start in REPL mode (readline loop) | — |
 | `--help` | Print usage and exit | — |
 | `--version` | Print version and exit | — |
@@ -79,6 +82,35 @@ Clears the agent's session memory. The next message starts a fresh conversation 
 
 Exits Loopy cleanly.
 
+### `/skills`
+
+Discover, search, install, and manage domain skills. Skills teach agents domain expertise — curated knowledge packages that make agents smarter.
+
+```
+/skills                        # List installed/discovered skills
+/skills list                   # Same as above
+/skills search <query>         # Search curated catalog by name, tag, description, author
+/skills info <name>            # Show skill details + install paths (Loopy CLI and Maven)
+/skills add <name>             # Install from catalog to ~/.claude/skills/
+/skills remove <name>          # Uninstall a skill
+```
+
+Skills are discovered from three sources:
+- **Project**: `.claude/skills/` in the working directory
+- **Global**: `~/.claude/skills/` (installed via `/skills add`)
+- **Classpath**: Maven dependencies with `META-INF/skills/` (SkillsJars)
+
+Spring AI developers can also add skills as Maven dependencies — no Loopy CLI needed:
+
+```xml
+<dependency>
+  <groupId>com.skillsjars</groupId>
+  <artifactId>skill-artifact-name</artifactId>
+</dependency>
+```
+
+Use `/skills info <name>` to see both install paths.
+
 ### `/forge-agent`
 
 Scaffolds an agent experiment project from a YAML brief.
@@ -90,11 +122,37 @@ Scaffolds an agent experiment project from a YAML brief.
 
 See [Forge Agent](forge-agent.md) for details on the brief format and customization pipeline.
 
+## Multi-Provider Examples
+
+```bash
+# Anthropic (default)
+loopy -p "explain this codebase"
+
+# OpenAI
+loopy --provider openai -p "add input validation"
+
+# Google Gemini
+loopy --provider google-genai -p "write unit tests"
+
+# Custom endpoint (vLLM, LM Studio)
+loopy --provider openai --base-url http://localhost:1234/v1 -p "hello"
+
+# Verbose user-facing debug (turns, tool calls, cost on stderr)
+loopy --debug --repl
+
+# Developer file logging (Spring AI internals, token math)
+LOOPY_DEBUG_LOG=1 loopy --repl
+LOOPY_DEBUG_LOG=/tmp/loopy.log loopy -p "hello"
+```
+
 ## Environment Variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `ANTHROPIC_API_KEY` | Anthropic API key for Claude models | Yes (except echo mode) |
+| `ANTHROPIC_API_KEY` | Anthropic API key | Yes for `--provider anthropic` (default) |
+| `OPENAI_API_KEY` | OpenAI API key | Yes for `--provider openai` |
+| `GOOGLE_API_KEY` | Google AI API key | Yes for `--provider google-genai` |
+| `LOOPY_DEBUG_LOG` | Developer file logging path (set to `1` for default `~/.local/state/loopy/logs/loopy-debug.log`) | No |
 
 ## Exit Codes
 

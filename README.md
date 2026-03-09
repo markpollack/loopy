@@ -1,8 +1,18 @@
 # Loopy
 
-A loop-driven interactive coding agent CLI for Java developers. Built on [Spring AI](https://docs.spring.io/spring-ai/reference/) with an embedded agent loop, modern terminal UI, and project scaffolding.
+A loop-driven interactive coding agent CLI for Java developers. Built on [Spring AI](https://docs.spring.io/spring-ai/reference/) with an embedded agent loop, modern terminal UI, and domain skills.
 
-Loopy is the entry point for **knowledge-directed execution** — the idea that curated domain knowledge + structured execution process contribute more to agent quality than model choice alone.
+Loopy is the entry point for **knowledge-directed execution** — the idea that curated domain knowledge + structured execution contribute more to agent quality than model choice alone.
+
+## Highlights
+
+- **Skills** — domain knowledge that makes agents smarter. Discover, install, and create skills from a curated catalog of 23+ skills. Skills follow the [agentskills.io](https://agentskills.io) spec and work in any agentic CLI
+- **Multi-provider** — Anthropic (default), OpenAI, Google Gemini. Switch with `--provider`
+- **Three modes** — interactive TUI, single-shot print (`-p`), REPL (`--repl`)
+- **Cost visibility** — per-turn token usage and estimated cost
+- **Context compaction** — automatic summarization for long sessions
+- **CLAUDE.md auto-injection** — project-specific instructions, same convention as Claude Code
+- **Forge agent** — scaffold agent experiment projects from YAML briefs
 
 ## Documentation
 
@@ -15,9 +25,13 @@ Loopy is the entry point for **knowledge-directed execution** — the idea that 
 ## Prerequisites
 
 - **Java 21+** — check with `java -version`. Install via [SDKMAN](https://sdkman.io/): `sdk install java 21.0.9-librca`
-- **Anthropic API key** — get one at [console.anthropic.com](https://console.anthropic.com/)
+- **API key** for at least one provider:
 
-Set your API key:
+| Provider | Environment Variable | Get a key |
+|----------|---------------------|-----------|
+| Anthropic (default) | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com/) |
+| OpenAI | `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com/) |
+| Google Gemini | `GOOGLE_API_KEY` | [aistudio.google.com](https://aistudio.google.com/) |
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -27,22 +41,12 @@ Add the export to your shell profile (`~/.bashrc`, `~/.zshrc`) to persist across
 
 ## Quick Start
 
-### JBang (easiest, no build required)
-
-```bash
-# Single-shot task
-jbang loopy@markpollack/loopy -p "create a hello world Spring Boot app"
-
-# Interactive TUI
-jbang loopy@markpollack/loopy
-```
-
-### Download fat JAR
+### Download fat JAR (easiest)
 
 Download from the [releases page](https://github.com/markpollack/loopy/releases):
 
 ```bash
-java -jar loopy-0.1.0-SNAPSHOT.jar
+java -jar loopy-0.2.0-SNAPSHOT.jar
 ```
 
 ### Build from source
@@ -51,7 +55,7 @@ java -jar loopy-0.1.0-SNAPSHOT.jar
 git clone https://github.com/markpollack/loopy.git
 cd loopy
 ./mvnw package
-java -jar target/loopy-0.1.0-SNAPSHOT.jar
+java -jar target/loopy-0.2.0-SNAPSHOT.jar
 ```
 
 ## Execution Modes
@@ -91,9 +95,12 @@ loopy --repl
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-d, --directory <path>` | Working directory | Current directory |
-| `-m, --model <name>` | Anthropic model to use | `claude-sonnet-4-20250514` |
+| `-m, --model <name>` | Model to use | Per-provider (see [Configuration](docs/configuration.md)) |
 | `-t, --max-turns <n>` | Maximum agent loop iterations | `20` |
 | `-p, --print <prompt>` | Single-shot print mode | — |
+| `--provider <name>` | AI provider: `anthropic`, `openai`, `google-genai` | `anthropic` |
+| `--base-url <url>` | Custom API base URL (vLLM, LM Studio) | — |
+| `--debug` | Verbose agent activity (turns, tool calls, cost) on stderr | — |
 | `--repl` | REPL mode (readline loop) | — |
 | `--help` | Print usage information | — |
 | `--version` | Print version | — |
@@ -107,17 +114,69 @@ In TUI and REPL modes, lines starting with `/` are intercepted before reaching t
 | `/help` | List available commands |
 | `/clear` | Clear session memory (start fresh conversation) |
 | `/quit` | Exit Loopy |
+| `/skills` | Discover, search, install, and manage domain skills |
 | `/forge-agent --brief <path>` | Bootstrap an agent experiment project from a YAML brief |
 
 ## Features
 
+### Skills (Domain Knowledge)
+
+Skills are curated knowledge packages that make agents smarter. They follow the [agentskills.io](https://agentskills.io) specification and work in 40+ agentic CLIs — not just Loopy.
+
+```bash
+loopy --repl
+> /skills                          # List installed and discovered skills
+> /skills search testing           # Search the curated catalog
+> /skills info systematic-debugging  # Skill details + install instructions
+> /skills add systematic-debugging   # Install to ~/.claude/skills/
+> /skills remove systematic-debugging  # Uninstall
+```
+
+Loopy discovers skills from three sources:
+
+| Source | Path | How it gets there |
+|--------|------|-------------------|
+| Project | `.claude/skills/*/SKILL.md` | Team-shared skills checked into the repo |
+| Global | `~/.claude/skills/*/SKILL.md` | `/skills add` from the curated catalog |
+| Classpath | `META-INF/skills/SKILL.md` in JARs | Maven dependency |
+
+**Progressive disclosure** — the agent sees skill names and descriptions, and loads full content only when relevant to the task. No tokens wasted on unused skills.
+
+**Curated catalog** — 23 skills from 8 publishers covering testing, debugging, security, code review, architecture, and more. Run `/skills search` to browse.
+
+#### Creating Custom Skills
+
+Place a `SKILL.md` file in `.claude/skills/<name>/` (project) or `~/.claude/skills/<name>/` (global):
+
+```markdown
+---
+name: my-team-conventions
+description: Coding conventions for my team's Spring Boot codebase
+---
+
+# Instructions
+
+When working on this codebase:
+- Use constructor injection, never field injection
+- All REST endpoints return ProblemDetail for errors
+- Tests use @WebMvcTest with MockMvc
+```
+
 ### CLAUDE.md Auto-Injection
 
-Loopy's embedded agent (via [Claude Agent SDK for Java](https://github.com/anthropics/claude-agent-sdk-java)) automatically reads `CLAUDE.md` from the working directory and appends it to the system prompt. This gives the agent project-specific context without any CLI flags — the same convention used by Claude Code.
+Loopy automatically reads `CLAUDE.md` from the working directory and appends it to the agent's system prompt. This gives the agent project-specific context without any CLI flags — the same convention used by Claude Code.
+
+### Cost Visibility
+
+Every response shows token usage and estimated cost:
+
+```
+tokens: 1234/567 | cost: $0.0089
+```
 
 ### Context Compaction
 
-Long sessions can exceed the model's context window. Loopy automatically summarizes older messages via Haiku when estimated tokens exceed 50% of the model limit, keeping the agent effective throughout extended sessions. This is enabled by default and configurable via the programmatic API.
+Long sessions can exceed the model's context window. Loopy automatically summarizes older messages when estimated tokens exceed 50% of the model limit, using a cheap model from the same provider (e.g., Haiku for Anthropic, gpt-4o-mini for OpenAI, gemini-2.5-flash-lite for Gemini). This reuses the same API credentials via a per-request model override.
 
 ### Agent Tools
 
@@ -126,22 +185,22 @@ The embedded agent has access to:
 | Tool | Description |
 |------|-------------|
 | `bash` | Execute shell commands |
-| `read_file` | Read file contents |
-| `write_file` | Write files |
-| `edit_file` | Edit files with diffs |
-| `glob` | Find files by pattern |
-| `grep` | Search file contents |
-| `list_files` | List directory contents |
-| `Submit` | Submit final answer |
+| `Read` | Read file contents |
+| `Write` | Create or overwrite files |
+| `Edit` | Make targeted edits to existing files |
+| `Glob` | Find files by pattern |
+| `Grep` | Search file contents |
+| `Skill` | Load domain skills for task-relevant expertise |
+| `Submit` | Submit final answer (ends the agent loop) |
 | `TodoWrite` | Track work items |
 | `Task` | Delegate to sub-agents |
-| `AskUserQuestion` | Ask the user for clarification (optional) |
-| `BraveWebSearch` | Web search (optional, requires API key) |
-| `SmartWebFetch` | Fetch web pages (optional) |
+| `AskUserQuestionTool` | Ask the user for clarification (TUI only) |
+| `WebSearch` | Web search (requires `BRAVE_API_KEY`) |
+| `WebFetch` | Fetch and summarize web pages (requires `BRAVE_API_KEY`) |
 
 ### Echo Mode (no API key)
 
-If `ANTHROPIC_API_KEY` is not set, the TUI launches in echo mode — useful for testing the UI and slash commands without consuming API tokens.
+If no API key is set for the selected provider, the TUI launches in echo mode — useful for testing the UI and slash commands without consuming API tokens.
 
 ## Programmatic API
 
@@ -174,13 +233,15 @@ LoopyResult act = agent.run("now execute the plan");
 | `.apiKey(String)` | API key override | `ANTHROPIC_API_KEY` env var |
 | `.baseUrl(String)` | Custom API endpoint (vLLM, LM Studio) | Anthropic default |
 | `.sessionMemory(boolean)` | Preserve context across `run()` calls | `true` |
-| `.compactionEnabled(boolean)` | Auto-summarize old messages | `true` |
+| `.compactionModelName(String)` | Model for compaction (null to disable) | `claude-haiku-4-5-20251001` |
 | `.compactionThreshold(double)` | Fraction of context limit triggering compaction | `0.5` |
 | `.contextLimit(int)` | Token limit for compaction calculation | `200,000` |
 | `.costLimit(double)` | Max cost in dollars before stopping | `$5.00` |
-| `.commandTimeout(Duration)` | Timeout for individual tool calls | `120s` |
+| `.commandTimeout(Duration)` | Timeout for individual tool calls (bash, file ops) | `120s` |
 | `.timeout(Duration)` | Overall agent loop timeout | `10 min` |
-| `.disabledTools(Set<String>)` | Tools to exclude | none |
+| `.disabledTools(Set<String>)` | Tools to exclude by name | none |
+
+> **Note:** The programmatic API defaults to `claude-sonnet-4-6` via Anthropic only. CLI mode defaults are set per-provider in `application.yml` (Anthropic: `claude-sonnet-4-20250514`, OpenAI: `gpt-4o`, Gemini: `gemini-2.5-flash`).
 
 ### Custom Endpoints
 
@@ -201,13 +262,13 @@ Single Maven module with four layers:
 
 ```
 io.github.markpollack.loopy
-├── agent/    MiniAgent loop, AgentLoopAdvisor, BashTool, observability
+├── agent/    MiniAgent loop, AgentLoopAdvisor, BashTool, SkillsTool, observability
 ├── tui/      ChatScreen (Elm Architecture via tui4j), ChatEntry
-├── command/  SlashCommand interface, registry, /help, /clear, /quit
+├── command/  SlashCommand interface, registry, /help, /clear, /quit, /skills
 └── forge/    ExperimentBrief, TemplateCloner, TemplateCustomizer, /forge-agent
 ```
 
-- **Agent layer** — MiniAgent is an embedded agent loop (copied from [agent-harness](https://github.com/markpollack/agent-harness), evolving independently). It runs a think-act-observe loop with tool calling.
+- **Agent layer** — MiniAgent is an embedded agent loop (copied from [agent-harness](https://github.com/markpollack/agent-harness), evolving independently). It runs a think-act-observe loop with tool calling. SkillsTool provides progressive skill discovery.
 - **TUI layer** — Elm Architecture UI via tui4j. Agent calls run on a background thread; a spinner animates while waiting; Enter is gated to prevent overlapping calls.
 - **Command layer** — Slash commands are intercepted in `ChatScreen.submitInput()` before reaching the agent. New commands implement the `SlashCommand` interface and register in `SlashCommandRegistry`.
 - **Forge layer** — `/forge-agent` scaffolds agent experiment projects from YAML briefs: clone template, rename packages, update POM, generate config and README.
