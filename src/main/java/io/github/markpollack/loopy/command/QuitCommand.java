@@ -15,6 +15,11 @@ public class QuitCommand implements SlashCommand {
 	}
 
 	@Override
+	public java.util.List<String> aliases() {
+		return java.util.List.of("exit");
+	}
+
+	@Override
 	public String description() {
 		return "Exit Loopy";
 	}

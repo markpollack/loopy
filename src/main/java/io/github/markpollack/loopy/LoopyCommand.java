@@ -2,6 +2,7 @@ package io.github.markpollack.loopy;
 
 import com.williamcallahan.tui4j.compat.bubbletea.Model;
 import com.williamcallahan.tui4j.compat.bubbletea.Program;
+import com.williamcallahan.tui4j.term.TerminalInfo;
 
 import io.github.markpollack.journal.Journal;
 import io.github.markpollack.journal.Run;
@@ -73,6 +74,9 @@ public class LoopyCommand implements Callable<Integer> {
 
 	@Override
 	public Integer call() {
+		// Provide a basic TerminalInfo for lipgloss styling in non-TUI modes.
+		// TUI mode (bubbletea Program) overwrites this with the real JLine provider.
+		TerminalInfo.provide(() -> new TerminalInfo(System.console() != null, null));
 		configureDevLogging();
 		if (this.prompt != null) {
 			return runPrintMode();

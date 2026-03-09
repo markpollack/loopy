@@ -15,6 +15,9 @@ public class SlashCommandRegistry {
 
 	public void register(SlashCommand command) {
 		this.commands.put(command.name().toLowerCase(), command);
+		for (String alias : command.aliases()) {
+			this.commands.put(alias.toLowerCase(), command);
+		}
 	}
 
 	/**
@@ -43,10 +46,10 @@ public class SlashCommandRegistry {
 	}
 
 	/**
-	 * Returns all registered commands in registration order.
+	 * Returns all registered commands in registration order, excluding aliases.
 	 */
 	public List<SlashCommand> commands() {
-		return Collections.unmodifiableList(List.copyOf(this.commands.values()));
+		return this.commands.values().stream().distinct().toList();
 	}
 
 }

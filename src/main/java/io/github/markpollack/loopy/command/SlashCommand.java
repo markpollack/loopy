@@ -28,6 +28,13 @@ public interface SlashCommand {
 	String execute(String args, CommandContext context);
 
 	/**
+	 * Alternative names for this command (e.g., {@code "exit"} for {@code "quit"}).
+	 */
+	default java.util.List<String> aliases() {
+		return java.util.List.of();
+	}
+
+	/**
 	 * How command output is added to the conversation context.
 	 */
 	default ContextType contextType() {
