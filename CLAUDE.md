@@ -42,6 +42,7 @@ Requires API key for selected provider: `ANTHROPIC_API_KEY` (default), `OPENAI_A
 
 Core complete — Spring Boot 4.0.3 adoption, multi-provider (Anthropic/OpenAI/Gemini), cost visibility, context compaction, agent observability (journal-core, debug logging). Skills complete (SkillsTool wired, `/skills` command, curated catalog with 23 skills, search/add/remove).
 **Source of truth**: `plans/ROADMAP.md` — main roadmap + index to feature roadmaps.
+**Boot scaffolding roadmap**: `plans/roadmap-boot.md` — Wave 2 priority #1: `/boot-new`, `/boot-add`, `/starters`, `/boot-modify`
 **Skills roadmap**: `plans/roadmap-skills.md`
 **Protocol stack roadmaps**: `plans/roadmap-mcp.md`, `plans/roadmap-acp.md`, `plans/roadmap-a2a.md`.
 
