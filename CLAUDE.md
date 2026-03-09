@@ -60,6 +60,7 @@ Single-module CLI with four layers:
 - **TUI layer** (`tui/`) — ChatScreen (Elm Architecture via tui4j), ChatEntry — `io.github.markpollack.loopy.tui`
 - **Command layer** (`command/`) — SlashCommand interface, SlashCommandRegistry, HelpCommand, ClearCommand — `io.github.markpollack.loopy.command`
 - **Forge layer** (`forge/`) — ExperimentBrief, TemplateCloner, TemplateCustomizer, ForgeAgentCommand — `io.github.markpollack.loopy.forge`
+- **Boot layer** (`boot/`) — `/boot-new`, `/boot-add`, `/starters`, `/boot-modify` — Spring Boot scaffolding via `harness-patterns` `GraphCompositionStrategy` — `io.github.markpollack.loopy.boot`
 
 User input starting with `/` is intercepted by the command layer before reaching MiniAgent. Everything else flows through MiniAgent's agent loop (think → tool-call → observe).
 
@@ -91,6 +92,7 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 - `tui4j` 0.3.3-SNAPSHOT — Terminal UI (Bubble Tea port for Java). Built from local source.
 - `spring-ai-agent-utils` 0.5.0-SNAPSHOT — Community tools (FileSystemTools, GlobTool, GrepTool, AskUserQuestionTool, TodoWriteTool, TaskTool)
 - `journal-core` 1.0.1-SNAPSHOT — Structured agent run/event tracking (`io.github.markpollack:journal-core`)
+- `harness-patterns` 0.9.0-SNAPSHOT — Graph composition for boot scaffolding (`GraphCompositionStrategy`, `FunctionGraphNode`, `GraphContext`). Source: `~/projects/agent-harness/harness-patterns/`. Install: `cd ~/projects/agent-harness && JAVA_HOME=~/.sdkman/candidates/java/21.0.9-librca ./mvnw install -DskipTests`
 - `spring-ai-starter-model-anthropic` — Anthropic auto-config (Spring AI 2.0-M2 / Spring Boot 4.0.3)
 - `spring-ai-starter-model-openai` — OpenAI auto-config
 - `spring-ai-starter-model-google-genai` — Google Gemini auto-config
