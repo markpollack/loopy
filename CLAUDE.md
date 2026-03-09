@@ -45,7 +45,7 @@ Core complete — Spring Boot 4.0.3 adoption, multi-provider (Anthropic/OpenAI/G
 **Boot scaffolding roadmap**: `plans/roadmap-boot.md` — Wave 2 priority #1: `/boot-new`, `/boot-add`, `/starters`, `/boot-modify`
 - `harness-patterns:0.9.0-SNAPSHOT` dep (not copy) — graph classes in `io.github.markpollack.harness.patterns.graph`
 - `FunctionGraphNode` for all LLM nodes — MiniAgent evolved past AgentLoop, backport is future work
-- Text-based package rename for genesis (TemplateCustomizer pattern) — JavaParser deferred to experiment phase
+- `JavaParserRefactor` — deterministic package rename using JavaParser AST + `LexicalPreservingPrinter`; requires `JAVA_18` language level for record support
 - MiniAgent grow cycle = Stage 7 (Agent Quality): terminal-bench baseline 32/35, grow via experiment-driver, backport to agent-harness
 **Skills roadmap**: `plans/roadmap-skills.md`
 **Protocol stack roadmaps**: `plans/roadmap-mcp.md`, `plans/roadmap-acp.md`, `plans/roadmap-a2a.md`.
@@ -93,6 +93,7 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 - `spring-ai-agent-utils` 0.5.0-SNAPSHOT — Community tools (FileSystemTools, GlobTool, GrepTool, AskUserQuestionTool, TodoWriteTool, TaskTool)
 - `journal-core` 1.0.1-SNAPSHOT — Structured agent run/event tracking (`io.github.markpollack:journal-core`)
 - `harness-patterns` 0.9.0-SNAPSHOT — Graph composition for boot scaffolding (`GraphCompositionStrategy`, `FunctionGraphNode`, `GraphContext`). Source: `~/projects/agent-harness/harness-patterns/`. Install: `cd ~/projects/agent-harness && JAVA_HOME=~/.sdkman/candidates/java/21.0.9-librca ./mvnw install -DskipTests`
+- `javaparser-core` 3.25.7 — Deterministic package rename in `/boot-new`. Max language level: `JAVA_18` (records supported). Must be declared explicitly — NOT transitive.
 - `spring-ai-starter-model-anthropic` — Anthropic auto-config (Spring AI 2.0-M2 / Spring Boot 4.0.3)
 - `spring-ai-starter-model-openai` — OpenAI auto-config
 - `spring-ai-starter-model-google-genai` — Google Gemini auto-config

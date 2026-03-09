@@ -140,6 +140,13 @@
             <version>0.9.0-SNAPSHOT</version>
         </dependency>
 
+        <!-- JavaParser (deterministic package rename in /boot-new scaffolding) -->
+        <dependency>
+            <groupId>com.github.javaparser</groupId>
+            <artifactId>javaparser-core</artifactId>
+            <version>3.25.7</version>
+        </dependency>
+
         <!-- Null safety -->
         <dependency>
             <groupId>org.jspecify</groupId>
