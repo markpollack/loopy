@@ -1,5 +1,7 @@
 package io.github.markpollack.loopy.command;
 
+import com.williamcallahan.tui4j.term.TerminalInfo;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -11,6 +13,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class SkillsCommandTest {
 
+	@BeforeAll
+	static void initTerminalInfo() {
+		TerminalInfo.provide(() -> new TerminalInfo(false, null));
+	}
+
 	private final SkillsCommand command = new SkillsCommand();
 
 	@Test
@@ -18,7 +25,7 @@ class SkillsCommandTest {
 		var ctx = new CommandContext(tempDir, () -> {
 		});
 		String result = command.execute("list", ctx);
-		assertThat(result).contains("No skills found");
+		assertThat(result).contains("No skills installed");
 	}
 
 	@Test
@@ -89,7 +96,7 @@ class SkillsCommandTest {
 		});
 		String result = command.execute("search", ctx);
 		// blank query returns all catalog entries
-		assertThat(result).contains("Catalog results");
+		assertThat(result).contains("All skills");
 	}
 
 	@Test
@@ -133,21 +140,19 @@ class SkillsCommandTest {
 	}
 
 	@Test
-	void searchShowsMavenBadge(@TempDir Path tempDir) {
+	void searchShowsSkillName(@TempDir Path tempDir) {
 		var ctx = new CommandContext(tempDir, () -> {
 		});
 		String result = command.execute("search spring-boot", ctx);
-		// spring-boot has skillsjars coordinates
-		assertThat(result).contains("[maven]").contains("spring-boot");
+		assertThat(result).contains("spring-boot").contains("sivalabs");
 	}
 
 	@Test
-	void searchShowsNoMavenBadgeForNonMavenSkills(@TempDir Path tempDir) {
+	void searchShowsAuthorAndTags(@TempDir Path tempDir) {
 		var ctx = new CommandContext(tempDir, () -> {
 		});
 		String result = command.execute("search dr-jskill", ctx);
-		// dr-jskill has skillsjars: null
-		assertThat(result).contains("dr-jskill").doesNotContain("[maven] dr-jskill");
+		assertThat(result).contains("dr-jskill").contains("by ");
 	}
 
 	@Test
@@ -160,7 +165,7 @@ class SkillsCommandTest {
 			.contains("/skills add spring-boot")
 			.contains("<dependency>")
 			.contains("com.skillsjars")
-			.contains("By: Siva Prasad Reddy");
+			.contains("by Siva Prasad Reddy");
 	}
 
 	@Test

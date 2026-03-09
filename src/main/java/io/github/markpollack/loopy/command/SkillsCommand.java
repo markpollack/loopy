@@ -1,5 +1,7 @@
 package io.github.markpollack.loopy.command;
 
+import com.williamcallahan.tui4j.compat.lipgloss.Style;
+import com.williamcallahan.tui4j.compat.lipgloss.color.Color;
 import org.springaicommunity.agent.tools.SkillsTool.Skill;
 import org.springaicommunity.agent.utils.MarkdownParser;
 import org.springaicommunity.agent.utils.Skills;
@@ -28,6 +30,16 @@ import java.util.stream.Stream;
  * </ul>
  */
 public class SkillsCommand implements SlashCommand {
+
+	private static final Style NAME_STYLE = Style.newStyle().foreground(Color.color("#7AA2F7")).bold(true);
+
+	private static final Style DESC_STYLE = Style.newStyle().foreground(Color.color("#A9B1D6"));
+
+	private static final Style META_STYLE = Style.newStyle().faint(true);
+
+	private static final Style HINT_STYLE = Style.newStyle().foreground(Color.color("#565F89"));
+
+	private static final Style INSTALLED_STYLE = Style.newStyle().foreground(Color.color("#9ECE6A"));
 
 	@Override
 	public String name() {
@@ -76,18 +88,26 @@ public class SkillsCommand implements SlashCommand {
 	}
 
 	private String listSkills(CommandContext context) {
+		var catalog = SkillsCatalog.load();
+		int catalogSize = catalog.all().size();
 		List<SkillEntry> skills = discoverSkills(context);
 		if (skills.isEmpty()) {
-			return "No skills found.\n\nPlace SKILL.md files in .claude/skills/ (project) or ~/.claude/skills/ (global).";
+			StringBuilder sb = new StringBuilder();
+			sb.append("No skills installed.\n\n");
+			sb.append(HINT_STYLE.render("  Browse " + catalogSize + " available:"))
+				.append("  /skills search <query>\n");
+			sb.append(HINT_STYLE.render("  List all:")).append("              /skills search\n");
+			sb.append(HINT_STYLE.render("  Add a skill:")).append("           /skills add <name>");
+			return sb.toString();
 		}
 
-		StringBuilder sb = new StringBuilder("Discovered skills:\n\n");
+		StringBuilder sb = new StringBuilder("Installed skills:\n\n");
 		for (SkillEntry skill : skills) {
-			sb.append("  ").append(skill.name);
+			sb.append("  ").append(NAME_STYLE.render(skill.name));
+			sb.append(META_STYLE.render(" (" + skill.source + ")")).append("\n");
 			if (skill.description != null) {
-				sb.append(" — ").append(skill.description);
+				sb.append("      ").append(DESC_STYLE.render(skill.description)).append("\n");
 			}
-			sb.append(" (").append(skill.source).append(")\n");
 		}
 		return sb.toString().stripTrailing();
 	}
@@ -98,11 +118,13 @@ public class SkillsCommand implements SlashCommand {
 		for (SkillEntry skill : skills) {
 			if (name.equalsIgnoreCase(skill.name)) {
 				StringBuilder sb = new StringBuilder();
-				sb.append("# ").append(skill.name).append("\n");
+				sb.append(NAME_STYLE.render(skill.name));
+				sb.append(INSTALLED_STYLE.render(" (installed)")).append("\n");
 				if (skill.description != null) {
-					sb.append(skill.description).append("\n");
+					sb.append(DESC_STYLE.render(skill.description)).append("\n");
 				}
-				sb.append("Source: ").append(skill.path != null ? skill.path : skill.source).append("\n");
+				sb.append(META_STYLE.render("Source: " + (skill.path != null ? skill.path : skill.source)))
+					.append("\n");
 				appendCatalogInstallPaths(sb, skill.name);
 				sb.append("\n").append(skill.content);
 				return sb.toString().stripTrailing();
@@ -115,20 +137,20 @@ public class SkillsCommand implements SlashCommand {
 		if (catalogEntry.isPresent()) {
 			var entry = catalogEntry.get();
 			StringBuilder sb = new StringBuilder();
-			sb.append("# ").append(entry.name).append("\n");
+			sb.append(NAME_STYLE.render(entry.name)).append("\n");
 			if (entry.description != null) {
-				sb.append(entry.description).append("\n");
+				sb.append(DESC_STYLE.render(entry.description)).append("\n");
 			}
-			sb.append("By: ").append(entry.author).append("\n");
+			sb.append(META_STYLE.render("by " + entry.author)).append("\n");
 			if (entry.tags != null && !entry.tags.isEmpty()) {
-				sb.append("Tags: ").append(String.join(", ", entry.tags)).append("\n");
+				sb.append(META_STYLE.render("tags: " + String.join(", ", entry.tags))).append("\n");
 			}
 			sb.append("\n");
 			appendInstallPaths(sb, entry);
 			return sb.toString().stripTrailing();
 		}
 
-		return "Skill not found: " + name + ". Use /skills list to see available skills.";
+		return "Skill not found: " + name + ". Use /skills search to browse available skills.";
 	}
 
 	private void appendCatalogInstallPaths(StringBuilder sb, String skillName) {
@@ -211,34 +233,32 @@ public class SkillsCommand implements SlashCommand {
 
 	private String searchCatalog(String query) {
 		var catalog = SkillsCatalog.load();
-		var results = catalog.search(query);
+		var results = query.isBlank() ? catalog.all() : catalog.search(query);
 		if (results.isEmpty()) {
 			return "No skills match '" + query + "'. Try /skills search with a broader term.";
 		}
 
-		StringBuilder sb = new StringBuilder("Catalog results for '" + query + "':\n\n");
+		String header = query.isBlank() ? "All skills (" + results.size() + "):"
+				: results.size() + " result" + (results.size() == 1 ? "" : "s") + " for '" + query + "':";
+		StringBuilder sb = new StringBuilder(header).append("\n");
 		for (var entry : results) {
 			boolean installed = SkillsCatalog.isInstalled(entry.name);
-			boolean hasMaven = entry.skillsjars != null && !entry.skillsjars.isBlank();
-			sb.append("  ");
+			sb.append("\n  ");
 			if (installed) {
-				sb.append("[installed] ");
+				sb.append(INSTALLED_STYLE.render("✔ "));
 			}
-			if (hasMaven) {
-				sb.append("[maven] ");
-			}
-			sb.append(entry.name);
+			sb.append(NAME_STYLE.render(entry.name)).append("\n");
 			if (entry.description != null) {
-				sb.append(" — ").append(entry.description);
+				sb.append("      ").append(DESC_STYLE.render(entry.description)).append("\n");
 			}
-			sb.append("\n    by ").append(entry.author);
+			sb.append("      ").append(META_STYLE.render("by " + entry.author));
 			if (entry.tags != null && !entry.tags.isEmpty()) {
-				sb.append(" | tags: ").append(String.join(", ", entry.tags));
+				sb.append(META_STYLE.render(" · " + String.join(", ", entry.tags)));
 			}
 			sb.append("\n");
 		}
-		sb.append("\nUse /skills info <name> for install options. Use /skills add <name> to install.");
-		return sb.toString().stripTrailing();
+		sb.append("\n").append(HINT_STYLE.render("  /skills info <name> for details · /skills add <name> to install"));
+		return sb.toString();
 	}
 
 	private String addSkill(String name) {
