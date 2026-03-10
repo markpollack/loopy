@@ -5,6 +5,8 @@ import io.github.markpollack.loopy.agent.MiniAgentConfig;
 import io.github.markpollack.loopy.boot.modify.JvmVersionResolver;
 import io.github.markpollack.loopy.boot.modify.NativeDetector;
 import io.github.markpollack.loopy.boot.modify.PomMutator;
+import io.github.markpollack.loopy.boot.modify.RecipeCatalog;
+import io.github.markpollack.loopy.boot.modify.RecipeClassifier;
 import io.github.markpollack.loopy.boot.modify.SqlDialectDetector;
 import io.github.markpollack.loopy.command.CommandContext;
 import io.github.markpollack.loopy.command.SlashCommand;
@@ -22,18 +24,17 @@ import java.nio.file.Path;
  * and applies deterministic POM mutations.
  *
  * <p>
- * One command handles all structural modification intents. The bounded MiniAgent
- * interprets the intent and selects which deterministic operation to run.
+ * Three-tier dispatch:
  * </p>
- *
- * <p>
- * Deterministic operations (no LLM needed):
- * <ul>
- * <li>{@code set java version <N>} or {@code java version to <N>}</li>
- * <li>{@code clean pom} or {@code clean up the pom}</li>
- * </ul>
- * Other intents are routed through the LLM agent.
- * </p>
+ * <ol>
+ * <li><strong>Keyword shortcuts</strong> — instant, zero LLM cost. Covers the most common
+ * operations by pattern-matching the lowercased intent string.</li>
+ * <li><strong>LLM recipe classifier</strong> — single cheap turn (Haiku), no tools. Maps
+ * free-form text to a named recipe and extracts parameters. Execution is still fully
+ * deterministic; the LLM only classifies.</li>
+ * <li><strong>Full MiniAgent</strong> — multi-turn with file tools. Used only when the
+ * intent is genuinely open-ended or requires multi-step reasoning.</li>
+ * </ol>
  *
  * <pre>
  * Usage: /boot-modify &lt;intent&gt;
@@ -42,6 +43,12 @@ import java.nio.file.Path;
  *   /boot-modify set java version 21
  *   /boot-modify clean up the pom
  *   /boot-modify add native image support
+ *   /boot-modify add actuator
+ *   /boot-modify add spring format enforcement
+ *   /boot-modify add multi-arch CI
+ *   /boot-modify add basic GitHub Actions workflow
+ *   /boot-modify add dependency com.example:my-lib:1.0
+ *   /boot-modify remove h2 dependency
  * </pre>
  */
 public class BootModifyCommand implements SlashCommand {
@@ -61,7 +68,7 @@ public class BootModifyCommand implements SlashCommand {
 
 	@Override
 	public String description() {
-		return "Apply structural modifications to a Spring Boot project (set java version, clean pom, etc.)";
+		return "Apply structural modifications to a Spring Boot project (set java version, add native support, add CI, clean pom, etc.)";
 	}
 
 	@Override
@@ -81,84 +88,151 @@ public class BootModifyCommand implements SlashCommand {
 			return "No pom.xml found in " + workDir + ". Run this command from a Maven project root.";
 		}
 
-		// Try deterministic shortcuts first (no LLM needed)
-		String deterministicResult = tryDeterministicOperation(args.trim(), pomFile);
-		if (deterministicResult != null) {
-			return deterministicResult;
-		}
-
-		// Fall through to bounded LLM agent
-		if (chatModel == null) {
-			return "No AI model available. Supported deterministic intents:\n"
-					+ "  /boot-modify set java version <N>  — sets java.version property\n"
-					+ "  /boot-modify clean pom             — removes empty/null POM fields";
-		}
-
-		return runAgentModify(args.trim(), pomFile, workDir);
-	}
-
-	/**
-	 * Try to execute deterministic operations without LLM.
-	 * @return result string, or {@code null} if no deterministic match
-	 */
-	private static @Nullable String tryDeterministicOperation(String intent, Path pomFile) {
+		String intent = args.trim();
 		String lower = intent.toLowerCase();
 		PomMutator mutator = new PomMutator(pomFile);
 
-		// "set java version 21" / "java version to 21" / "java version 21"
-		if (lower.contains("java version") || lower.contains("java 21") || lower.contains("java 17")
-				|| lower.contains("java 11")) {
-			String version = extractJavaVersion(lower);
-			if (version != null) {
-				try {
+		// Tier 1: Keyword shortcuts — instant, no LLM
+		String keywordResult = tryKeywordShortcut(lower, mutator, workDir);
+		if (keywordResult != null) {
+			return keywordResult;
+		}
+
+		// Tier 2: LLM recipe classifier — 1 turn, cheap model, deterministic execution
+		if (chatModel != null) {
+			String recipeResult = tryRecipeClassification(intent, mutator, workDir, pomFile);
+			if (recipeResult != null) {
+				return recipeResult;
+			}
+		}
+
+		// Tier 3: Full MiniAgent — open-ended, multi-turn, file tools
+		if (chatModel == null) {
+			return "No AI model available. Supported intents (no AI needed):\n" + keywordHelp();
+		}
+		return runAgentModify(intent, pomFile, workDir);
+	}
+
+	// --- Tier 1: Keyword shortcuts ---
+
+	/**
+	 * Pattern-match the lowercased intent to a recipe and execute it without any LLM.
+	 * @return result string, or {@code null} if no keyword match
+	 */
+	private static @Nullable String tryKeywordShortcut(String lower, PomMutator mutator, Path workDir) {
+		try {
+			// SET_JAVA_VERSION
+			if (lower.contains("java version") || lower.contains("java 21") || lower.contains("java 17")
+					|| lower.contains("java 11") || lower.contains("java 8")) {
+				String version = extractJavaVersion(lower);
+				if (version != null) {
 					return mutator.setJavaVersion(version);
 				}
-				catch (Exception ex) {
-					logger.error("Failed to set java version: {}", ex.getMessage(), ex);
-					return "Error setting Java version: " + ex.getMessage();
-				}
 			}
-		}
 
-		// "clean pom" / "clean up the pom" / "remove empty tags"
-		if (lower.contains("clean pom") || lower.contains("clean up") || lower.contains("remove empty")
-				|| lower.contains("cleanup")) {
-			try {
+			// CLEAN_POM
+			if (lower.contains("clean pom") || lower.contains("clean up") || lower.contains("remove empty")
+					|| lower.contains("cleanup") || lower.contains("strip empty")) {
 				return mutator.cleanPom();
 			}
-			catch (Exception ex) {
-				logger.error("Failed to clean pom: {}", ex.getMessage(), ex);
-				return "Error cleaning pom: " + ex.getMessage();
+
+			// ADD_NATIVE_IMAGE
+			if ((lower.contains("add") || lower.contains("enable"))
+					&& (lower.contains("native image") || lower.contains("native-maven-plugin")
+							|| lower.contains("graalvm native") || lower.contains("native support")
+							|| lower.contains("native compilation") || lower.contains("native build"))) {
+				return mutator.addPlugin("org.graalvm.buildtools", "native-maven-plugin", null);
+			}
+
+			// REMOVE_NATIVE_IMAGE
+			if ((lower.contains("remove") || lower.contains("delete") || lower.contains("disable"))
+					&& (lower.contains("native") && (lower.contains("plugin") || lower.contains("image")
+							|| lower.contains("maven") || lower.contains("graalvm")))) {
+				return mutator.removePlugin("org.graalvm.buildtools", "native-maven-plugin");
+			}
+
+			// ADD_SPRING_FORMAT
+			if (lower.contains("spring format") || lower.contains("javaformat") || lower.contains("java format")
+					|| lower.contains("spring-javaformat") || lower.contains("format enforcement")) {
+				return mutator.addPlugin("io.spring.javaformat", "spring-javaformat-maven-plugin", null);
+			}
+
+			// ADD_ACTUATOR
+			if (lower.contains("actuator") || (lower.contains("health") && lower.contains("endpoint"))
+					|| lower.contains("management endpoint") || lower.contains("micrometer")) {
+				return mutator.addDependency("org.springframework.boot", "spring-boot-starter-actuator", null, null);
+			}
+
+			// ADD_SECURITY
+			if ((lower.contains("spring security") || lower.contains("security starter"))
+					|| (lower.contains("add security") && !lower.contains("github"))) {
+				return mutator.addDependency("org.springframework.boot", "spring-boot-starter-security", null, null);
+			}
+
+			// ADD_MULTI_ARCH_CI — check before ADD_BASIC_CI (multi-arch is more specific)
+			if (lower.contains("multi-arch") || lower.contains("multiarch") || lower.contains("multi arch")
+					|| lower.contains("arm64") || lower.contains("cross-platform native")) {
+				return RecipeCatalog.execute("ADD_MULTI_ARCH_CI", java.util.Map.of(), mutator, workDir);
+			}
+
+			// ADD_BASIC_CI
+			if ((lower.contains("github actions") || lower.contains("github workflow") || lower.contains("add ci")
+					|| lower.contains("basic ci") || lower.contains("maven ci")) && !lower.contains("native")) {
+				return RecipeCatalog.execute("ADD_BASIC_CI", java.util.Map.of(), mutator, workDir);
 			}
 		}
-
+		catch (Exception ex) {
+			logger.error("Keyword shortcut failed: {}", ex.getMessage(), ex);
+			return "Error applying modification: " + ex.getMessage();
+		}
 		return null;
 	}
 
 	/**
-	 * Extract a Java version number from the intent string (e.g., "java version 21" →
-	 * "21").
+	 * Extract Java version number from lowercased intent (e.g. "java version 21" → "21").
 	 */
 	private static @Nullable String extractJavaVersion(String lower) {
 		String[] versions = { "25", "24", "23", "22", "21", "17", "11", "8" };
 		for (String v : versions) {
-			if (lower.contains(" " + v) || lower.contains("=" + v)) {
+			if (lower.contains(" " + v) || lower.contains("=" + v) || lower.contains(":" + v)) {
 				return v;
 			}
 		}
 		return null;
 	}
 
+	// --- Tier 2: LLM recipe classification ---
+
+	/**
+	 * Use a cheap LLM call (Haiku, 1 turn, no tools) to classify the intent to a recipe,
+	 * then execute that recipe deterministically.
+	 * @return result string, or {@code null} if classifier returned "none"
+	 */
+	private @Nullable String tryRecipeClassification(String intent, PomMutator mutator, Path workDir, Path pomFile) {
+		String projectContext = buildProjectContext(pomFile);
+		var classifier = new RecipeClassifier(chatModel);
+		var result = classifier.classify(intent, projectContext);
+		if (!result.matched()) {
+			return null;
+		}
+		try {
+			logger.info("Classified '{}' → {}", intent, result.recipeName());
+			return RecipeCatalog.execute(result.recipeName(), result.params(), mutator, workDir);
+		}
+		catch (Exception ex) {
+			logger.warn("Recipe execution failed for {}: {}", result.recipeName(), ex.getMessage());
+			return "Recipe " + result.recipeName() + " failed: " + ex.getMessage();
+		}
+	}
+
+	// --- Tier 3: Full MiniAgent ---
+
 	private String runAgentModify(String intent, Path pomFile, Path workDir) {
-		// Gather project context
 		String javaVersion = JvmVersionResolver.resolve(pomFile);
 		String sqlDialect = SqlDialectDetector.detect(pomFile);
 		boolean isNative = NativeDetector.isNative(pomFile);
-
-		// Try to read existing SAE analysis
 		String projectAnalysis = readFileIfExists(workDir.resolve("PROJECT-ANALYSIS.md"));
 
-		// Build agent task
 		String task = buildModifyTask(intent, javaVersion, sqlDialect, isNative, projectAnalysis);
 
 		try {
@@ -173,9 +247,9 @@ public class BootModifyCommand implements SlashCommand {
 			return "[" + result.status() + "]";
 		}
 		catch (Exception ex) {
-			logger.warn("Bounded agent failed for boot-modify: {}", ex.getMessage());
+			logger.warn("Full agent failed for boot-modify: {}", ex.getMessage());
 			return "Agent failed: " + ex.getMessage()
-					+ "\nTry a deterministic intent like: /boot-modify set java version 21";
+					+ "\nTry a more specific intent like: /boot-modify set java version 21";
 		}
 	}
 
@@ -201,6 +275,16 @@ public class BootModifyCommand implements SlashCommand {
 		return sb.toString();
 	}
 
+	// --- Helpers ---
+
+	private static String buildProjectContext(Path pomFile) {
+		String javaVersion = JvmVersionResolver.resolve(pomFile);
+		String sqlDialect = SqlDialectDetector.detect(pomFile);
+		boolean isNative = NativeDetector.isNative(pomFile);
+		return "Java version: " + (javaVersion != null ? javaVersion : "unknown") + ", SQL dialect: "
+				+ (sqlDialect != null ? sqlDialect : "none") + ", GraalVM native: " + (isNative ? "yes" : "no");
+	}
+
 	private static @Nullable String readFileIfExists(Path path) {
 		try {
 			if (Files.isRegularFile(path)) {
@@ -217,13 +301,38 @@ public class BootModifyCommand implements SlashCommand {
 		return """
 				Usage: /boot-modify <intent>
 
-				Deterministic (no AI needed):
+				Keyword shortcuts (no AI needed):
 				  /boot-modify set java version 21
 				  /boot-modify clean pom
-
-				AI-driven (interprets natural language):
 				  /boot-modify add native image support
-				  /boot-modify remove test dependency h2""";
+				  /boot-modify remove native image
+				  /boot-modify add spring format enforcement
+				  /boot-modify add actuator
+				  /boot-modify add security
+				  /boot-modify add multi-arch CI
+				  /boot-modify add basic CI workflow
+
+				AI-classified (deterministic execution):
+				  /boot-modify add dependency com.example:my-lib:1.0
+				  /boot-modify remove h2 dependency
+				  /boot-modify I need health check endpoints
+				  /boot-modify please make this project build for ARM
+
+				AI-driven (full agent, open-ended):
+				  /boot-modify add native image support with custom build args
+				  /boot-modify configure multi-module build""";
+	}
+
+	private static String keywordHelp() {
+		return """
+				/boot-modify set java version 21
+				/boot-modify clean pom
+				/boot-modify add native image support
+				/boot-modify add spring format enforcement
+				/boot-modify add actuator
+				/boot-modify add security
+				/boot-modify add multi-arch CI
+				/boot-modify add basic CI workflow""";
 	}
 
 }

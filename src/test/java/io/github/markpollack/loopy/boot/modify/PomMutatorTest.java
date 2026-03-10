@@ -99,6 +99,28 @@ class PomMutatorTest {
 	}
 
 	@Test
+	void removePluginDeletesPlugin() throws Exception {
+		Files.writeString(tempDir.resolve("pom.xml"), pomWithNativePlugin());
+		PomMutator mutator = new PomMutator(tempDir.resolve("pom.xml"));
+
+		String result = mutator.removePlugin("org.graalvm.buildtools", "native-maven-plugin");
+
+		assertThat(result).containsIgnoringCase("removed");
+		String pom = Files.readString(tempDir.resolve("pom.xml"));
+		assertThat(pom).doesNotContain("native-maven-plugin");
+	}
+
+	@Test
+	void removePluginNotFoundReturnsNoChange() throws Exception {
+		Files.writeString(tempDir.resolve("pom.xml"), minimalPom());
+		PomMutator mutator = new PomMutator(tempDir.resolve("pom.xml"));
+
+		String result = mutator.removePlugin("org.graalvm.buildtools", "native-maven-plugin");
+
+		assertThat(result).containsIgnoringCase("not found");
+	}
+
+	@Test
 	void removeDependencyDeletesDep() throws Exception {
 		Files.writeString(tempDir.resolve("pom.xml"), minimalPom());
 		PomMutator mutator = new PomMutator(tempDir.resolve("pom.xml"));
@@ -124,6 +146,26 @@ class PomMutatorTest {
 				  <dependencies/>
 				</project>
 				""".formatted(version);
+	}
+
+	private String pomWithNativePlugin() {
+		return """
+				<?xml version="1.0" encoding="UTF-8"?>
+				<project>
+				  <modelVersion>4.0.0</modelVersion>
+				  <groupId>com.example</groupId>
+				  <artifactId>app</artifactId>
+				  <version>0.0.1-SNAPSHOT</version>
+				  <build>
+				    <plugins>
+				      <plugin>
+				        <groupId>org.graalvm.buildtools</groupId>
+				        <artifactId>native-maven-plugin</artifactId>
+				      </plugin>
+				    </plugins>
+				  </build>
+				</project>
+				""";
 	}
 
 	private String minimalPom() {

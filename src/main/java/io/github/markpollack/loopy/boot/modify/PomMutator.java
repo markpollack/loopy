@@ -152,6 +152,27 @@ public class PomMutator {
 	}
 
 	/**
+	 * Remove a plugin from the build/plugins section by groupId + artifactId.
+	 * @return description of what changed
+	 */
+	public String removePlugin(String groupId, String artifactId) throws IOException, XmlPullParserException {
+		Model model = read();
+		if (model.getBuild() == null || model.getBuild().getPlugins() == null) {
+			return groupId + ":" + artifactId + " not found in build/plugins (no change)";
+		}
+		int before = model.getBuild().getPlugins().size();
+		model.getBuild()
+			.getPlugins()
+			.removeIf(p -> groupId.equals(p.getGroupId()) && artifactId.equals(p.getArtifactId()));
+		int removed = before - model.getBuild().getPlugins().size();
+		if (removed > 0) {
+			write(model);
+			return "Removed plugin: " + groupId + ":" + artifactId;
+		}
+		return groupId + ":" + artifactId + " not found in build/plugins (no change)";
+	}
+
+	/**
 	 * Remove a dependency by groupId + artifactId.
 	 * @return description of what changed
 	 */
