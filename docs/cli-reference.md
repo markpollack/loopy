@@ -111,6 +111,86 @@ Spring AI developers can also add skills as Maven dependencies — no Loopy CLI 
 
 Use `/skills info <name>` to see both install paths.
 
+### `/boot-new`
+
+Scaffold a new Spring Boot project from a bundled template.
+
+```
+/boot-new --template <name> --name <project-name> --group <group-id> [--no-llm]
+```
+
+| Template | Description |
+|----------|-------------|
+| `spring-boot-minimal` | Bare Spring Boot, no web, no persistence |
+| `spring-boot-rest` | REST API with web, validation, MockMvc tests |
+| `spring-boot-jpa` | REST + JPA with H2 for tests |
+| `spring-ai-app` | Spring AI app with ChatClient wiring |
+
+```
+/boot-new --template spring-boot-rest --name products-api --group com.acme
+/boot-new --template spring-boot-jpa --name inventory --group com.example --no-llm
+```
+
+Use `--no-llm` to skip the optional AI customization pass (faster, no API call needed).
+
+### `/starters`
+
+Discover Agent Starters and get suggestions for your project.
+
+```
+/starters                      # List available starters
+/starters search <query>       # Search by name, description, or trigger
+/starters info <name>          # Details + Maven coordinates
+/starters suggest              # Suggest starters based on your pom.xml
+```
+
+### `/boot-add`
+
+Bootstrap domain capabilities into an existing Spring Boot project: analyze the project structure, add the Agent Starter dependency, and optionally generate domain-specific code.
+
+```
+/boot-add <starter-name>
+/boot-add <starter-name> --no-agent
+/boot-add my-lib --coords com.example:my-lib:1.0.0
+```
+
+Requires `pom.xml` in the working directory. Writes `PROJECT-ANALYSIS.md` to the project root.
+
+### `/boot-modify`
+
+Apply structural modifications to an existing Spring Boot project using natural language.
+
+```
+/boot-modify <intent>
+```
+
+Common operations work instantly without any API call (keyword shortcuts). Natural-language variations go through a single lightweight AI classification call, then execute deterministically. The AI never writes POM XML.
+
+**Examples:**
+
+```
+# Instant keyword shortcuts — no API call
+/boot-modify set java version 21
+/boot-modify clean pom
+/boot-modify add native image support
+/boot-modify add spring format enforcement
+/boot-modify add actuator
+/boot-modify add security
+/boot-modify add multi-arch CI
+/boot-modify add basic CI workflow
+
+# Natural language — 1 fast classification call, then deterministic
+/boot-modify I need health check endpoints
+/boot-modify please make this project build for ARM
+/boot-modify add dependency com.example:my-lib:1.0
+/boot-modify remove the h2 dependency
+
+# Open-ended — full AI agent
+/boot-modify configure multi-module build
+```
+
+See [Spring Boot Scaffolding](boot-scaffolding.md) for the full reference including all built-in operations.
+
 ### `/forge-agent`
 
 Scaffolds an agent experiment project from a YAML brief.

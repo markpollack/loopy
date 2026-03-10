@@ -6,6 +6,7 @@ Loopy is the entry point for **knowledge-directed execution** — the idea that 
 
 ## Highlights
 
+- **Spring Boot scaffolding** — create, analyze, extend, and modify Spring Boot projects with `/boot-new`, `/boot-add`, `/starters`, and `/boot-modify`. No calls to `start.spring.io` — all knowledge is bundled.
 - **Skills** — domain knowledge that makes agents smarter. Discover, install, and create skills from a curated catalog of 23+ skills. Skills follow the [agentskills.io](https://agentskills.io) spec and work in any agentic CLI
 - **Multi-provider** — Anthropic (default), OpenAI, Google Gemini. Switch with `--provider`
 - **Three modes** — interactive TUI, single-shot print (`-p`), REPL (`--repl`)
@@ -18,6 +19,7 @@ Loopy is the entry point for **knowledge-directed execution** — the idea that 
 
 - [Getting Started](docs/getting-started.md) — installation, API key setup, first session
 - [CLI Reference](docs/cli-reference.md) — all commands, flags, and modes
+- [Spring Boot Scaffolding](docs/boot-scaffolding.md) — `/boot-new`, `/starters`, `/boot-add`, `/boot-modify`
 - [Configuration](docs/configuration.md) — environment variables, model selection, custom endpoints
 - [Architecture](docs/architecture.md) — four-layer design, data flow, quality guardrails
 - [Forge Agent](docs/forge-agent.md) — scaffolding experiment projects with `/forge-agent`
@@ -114,6 +116,10 @@ In TUI and REPL modes, lines starting with `/` are intercepted before reaching t
 | `/clear` | Clear session memory (start fresh conversation) |
 | `/quit` | Exit Loopy |
 | `/skills` | Discover, search, install, and manage domain skills |
+| `/boot-new` | Scaffold a new Spring Boot project from a bundled template |
+| `/starters` | Discover Agent Starters; suggest by pom.xml triggers |
+| `/boot-add` | Bootstrap domain capabilities into an existing Spring Boot project |
+| `/boot-modify` | Apply structural modifications — set Java version, add native support, add CI, clean pom, and more |
 | `/forge-agent --brief <path>` | Bootstrap an agent experiment project from a YAML brief |
 
 ## Features
@@ -160,6 +166,31 @@ When working on this codebase:
 - All REST endpoints return ProblemDetail for errors
 - Tests use @WebMvcTest with MockMvc
 ```
+
+### Spring Boot Scaffolding
+
+Loopy includes a full Spring Boot project lifecycle — create, discover capabilities, extend, and modify — with no dependency on `start.spring.io` or the Spring Initializr library. Knowledge is bundled; execution is deterministic.
+
+```bash
+# Create a new project
+/boot-new --template spring-boot-rest --name products-api --group com.acme
+
+# Discover what capabilities are available for your project
+/starters suggest
+
+# Bootstrap domain capabilities into an existing project
+/boot-add spring-ai-starter-data-jpa
+
+# Modify project structure
+/boot-modify set java version 21
+/boot-modify add native image support
+/boot-modify add multi-arch CI
+/boot-modify I need health check endpoints
+```
+
+**`/boot-modify`** understands natural language. For common operations it uses no AI at all (keyword shortcuts). For natural-language variations it uses a single lightweight classification call, then executes deterministically. The AI never writes POM XML — all POM changes go through Maven's own object model.
+
+See [Spring Boot Scaffolding](docs/boot-scaffolding.md) for the full reference.
 
 ### CLAUDE.md Auto-Injection
 
@@ -257,19 +288,21 @@ LoopyAgent agent = LoopyAgent.builder()
 
 ## Architecture
 
-Single Maven module with four layers:
+Single Maven module with five layers:
 
 ```
 io.github.markpollack.loopy
 ├── agent/    MiniAgent loop, AgentLoopAdvisor, BashTool, SkillsTool, observability
 ├── tui/      ChatScreen (Elm Architecture via tui4j), ChatEntry
 ├── command/  SlashCommand interface, registry, /help, /clear, /quit, /skills
+├── boot/     /boot-new, /starters, /boot-add, /boot-modify, PomMutator, SAE analyzer
 └── forge/    ExperimentBrief, TemplateCloner, TemplateCustomizer, /forge-agent
 ```
 
 - **Agent layer** — MiniAgent is an embedded agent loop (copied from [agent-harness](https://github.com/markpollack/agent-harness), evolving independently). It runs a think-act-observe loop with tool calling. SkillsTool provides progressive skill discovery.
 - **TUI layer** — Elm Architecture UI via tui4j. Agent calls run on a background thread; a spinner animates while waiting; Enter is gated to prevent overlapping calls.
 - **Command layer** — Slash commands are intercepted in `ChatScreen.submitInput()` before reaching the agent. New commands implement the `SlashCommand` interface and register in `SlashCommandRegistry`.
+- **Boot layer** — Spring Boot scaffolding: four commands, bundled templates, `BootProjectAnalyzer` (SAE), `PomMutator` (Maven object model), `RecipeCatalog` (deterministic operations), `RecipeClassifier` (lightweight AI classification).
 - **Forge layer** — `/forge-agent` scaffolds agent experiment projects from YAML briefs: clone template, rename packages, update POM, generate config and README.
 
 ## License
