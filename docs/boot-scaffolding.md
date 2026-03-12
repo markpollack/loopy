@@ -13,10 +13,39 @@ All commands work on Maven projects (`pom.xml` required, except `/boot-new`). No
 
 ## /boot-new
 
-Scaffold a new Spring Boot project from a bundled stem-cell template.
+Scaffold a new Spring Boot project from a bundled stem-cell template. Accepts either structured flags or plain natural language.
 
 ```
 /boot-new --template <name> --name <project-name> --group <group-id> [--no-llm]
+/boot-new <natural language description>
+```
+
+### Natural language path
+
+Plain text without `--` flags is routed through the agent, which calls `BootNewTool` with the right parameters extracted from your description. The LLM fills in template, group, name, and Java version — you describe the intent, the agent handles the details.
+
+```
+/boot-new a REST API called orders-api for com.acme
+/boot-new create a JPA project named catalog-service for com.corp with Java 17
+/boot-new scaffold a minimal Spring Boot app named hello-world for io.example
+/boot-new I need a Spring AI application for com.myorg called assistant-bot
+/boot-new build me a REST + JPA service named inventory-api, group com.warehouse
+```
+
+You can also skip the slash command entirely — typing in the chat window works too:
+
+```
+create a new Spring Boot project named products-api for com.acme using the REST template
+scaffold a JPA app called user-service for io.example with Java 21
+```
+
+### Structured flags path
+
+```
+/boot-new --template spring-boot-rest --name products-api --group com.acme
+/boot-new --template spring-boot-jpa --name inventory --group com.example --no-llm
+/boot-new --template spring-ai-app --name my-agent --group io.myorg
+/boot-new --name widget-service --group com.corp --java-version 17 --no-llm
 ```
 
 ### Templates
@@ -24,17 +53,9 @@ Scaffold a new Spring Boot project from a bundled stem-cell template.
 | Template | Description |
 |----------|-------------|
 | `spring-boot-minimal` | Bare Spring Boot application. No web, no persistence. Starting point for anything. |
-| `spring-boot-rest` | REST API with `spring-boot-starter-web`, validation, `ExampleController`, MockMvc tests. |
+| `spring-boot-rest` | REST API with `spring-boot-starter-web`, validation, `GreetingController`, MockMvc tests. |
 | `spring-boot-jpa` | REST + JPA with H2 (test scope), `@Entity`, `JpaRepository`. |
 | `spring-ai-app` | Spring AI application with `ChatClient` wiring and Anthropic auto-config. |
-
-### Examples
-
-```
-/boot-new --template spring-boot-rest --name products-api --group com.acme
-/boot-new --template spring-boot-jpa --name inventory --group com.example --no-llm
-/boot-new --template spring-ai-app --name my-agent --group io.myorg
-```
 
 ### What it does
 
@@ -136,56 +157,80 @@ One command handles all structural modification intents. Describe what you want 
 
 ### How it works
 
-`/boot-modify` uses a three-tier dispatch to keep costs low and execution deterministic:
+`/boot-modify` routes your intent through MiniAgent, which selects the right `@Tool` method from `BootModifyTool` based on your natural language description. Each tool method handles one operation and executes it deterministically via Maven's object model — the agent picks the tool, it never writes XML.
 
-**Tier 1 — Keyword shortcuts (instant, no AI)**
-Common patterns are matched directly without any API call. These always work, even without an API key.
+```
+/boot-modify <anything> → MiniAgent → BootModifyTool.@Tool method → pom.xml / filesystem
+```
 
-**Tier 2 — AI classification (1 fast call, deterministic execution)**
-For natural-language variations that don't match keywords, a lightweight AI call (Haiku, single turn, no tools) classifies the intent into a named operation and extracts any required parameters (like a version number or Maven coordinates). The actual modification is still 100% deterministic — the AI only classifies, it never writes XML.
+This means any natural language variation of an intent maps to the same deterministic operation. You don't need to know the exact keyword.
 
-**Tier 3 — Full AI agent (multi-turn, for open-ended intents)**
-If no operation matches, a bounded agent (max 5 turns) reads the full project context and applies the modification using file tools.
+### Available operations
 
-### Built-in operations
-
-The following operations are available deterministically — either via keyword shortcut (Tier 1) or AI classification (Tier 2):
+Each row is a separate `@Tool` method on `BootModifyTool`. The agent selects the right one based on your intent.
 
 | Operation | Example intents |
 |-----------|----------------|
-| Set Java version | `/boot-modify set java version 21` |
-| Clean POM | `/boot-modify clean pom` |
-| Add GraalVM native image | `/boot-modify add native image support` |
-| Remove GraalVM native image | `/boot-modify remove native-maven-plugin` |
-| Add Spring Java Format | `/boot-modify add spring format enforcement` |
-| Add Actuator | `/boot-modify add actuator` · `/boot-modify I need health check endpoints` |
-| Add Security | `/boot-modify add spring security` |
-| Add multi-arch native CI | `/boot-modify add multi-arch CI` · `/boot-modify build for ARM64 and x86` |
-| Add basic Maven CI | `/boot-modify add GitHub Actions workflow` |
-| Add a dependency | `/boot-modify add dependency com.example:my-lib:1.0` |
-| Remove a dependency | `/boot-modify remove the h2 dependency` |
+| Set Java version | `/boot-modify set java version 21` · `/boot-modify upgrade to Java 21` · `/boot-modify use Java 17` |
+| Clean POM | `/boot-modify clean pom` · `/boot-modify remove empty fields from the pom` · `/boot-modify normalize the pom file` |
+| Add GraalVM native image | `/boot-modify add native image support` · `/boot-modify enable GraalVM compilation` · `/boot-modify I want a native executable` |
+| Remove GraalVM native image | `/boot-modify remove native image support` · `/boot-modify drop the native-maven-plugin` |
+| Add Spring Java Format | `/boot-modify add spring format enforcement` · `/boot-modify enforce Spring code style` · `/boot-modify add the javaformat plugin` |
+| Add Actuator | `/boot-modify add actuator` · `/boot-modify I need health check endpoints` · `/boot-modify add metrics and management endpoints` · `/boot-modify wire up /health` |
+| Add Security | `/boot-modify add spring security` · `/boot-modify add authentication` · `/boot-modify I need security` |
+| Add multi-arch native CI | `/boot-modify add multi-arch CI` · `/boot-modify build native for ARM64 and x86` · `/boot-modify add GraalVM CI workflow` |
+| Add basic Maven CI | `/boot-modify add basic CI workflow` · `/boot-modify add GitHub Actions` · `/boot-modify set up CI for this project` |
+| Add a dependency | `/boot-modify add dependency com.example:my-lib:1.0` · `/boot-modify add org.mapstruct:mapstruct` · `/boot-modify I need MapStruct` |
+| Remove a dependency | `/boot-modify remove the h2 dependency` · `/boot-modify drop org.postgresql:postgresql` · `/boot-modify remove h2 from the pom` |
 
 ### Examples
 
 ```
-# Keyword shortcuts — instant, no API call
+# Java version management
 /boot-modify set java version 21
-/boot-modify clean pom
+/boot-modify upgrade to Java 21
+/boot-modify downgrade to Java 17
+/boot-modify use Java 17 for this service
 
-# AI-classified — 1 fast call, deterministic execution
-/boot-modify I need health check endpoints
-/boot-modify please make this project build for ARM
-/boot-modify add dependency com.example:my-lib:1.0
+# POM cleanup
+/boot-modify clean pom
+/boot-modify remove empty fields from pom.xml
+/boot-modify normalize the pom
+
+# Native image
+/boot-modify add native image support
+/boot-modify enable GraalVM native compilation
+/boot-modify remove native image support
+/boot-modify drop the native-maven-plugin
+
+# Observability and security
+/boot-modify add actuator
+/boot-modify I need health check and metrics endpoints
+/boot-modify add spring security
+/boot-modify add authentication to this project
+
+# CI/CD
+/boot-modify add basic CI workflow
+/boot-modify add GitHub Actions for Maven
+/boot-modify add multi-arch CI
+/boot-modify build native images for both ARM and x86
+
+# Dependency management
+/boot-modify add dependency org.springframework.boot:spring-boot-starter-web
+/boot-modify add org.mapstruct:mapstruct
+/boot-modify add com.example:my-library:2.1.0
+/boot-modify remove the h2 dependency
+/boot-modify drop org.postgresql:postgresql from the pom
 /boot-modify remove h2
 
-# Full agent — open-ended
-/boot-modify configure multi-module build
-/boot-modify add native image support with custom AOT hints
+# Code style
+/boot-modify add spring format enforcement
+/boot-modify enforce Spring Java Format
 ```
 
 ### POM modification guarantee
 
-All POM changes use Maven's own object model (`MavenXpp3Reader`/`MavenXpp3Writer`). No string replacement, no regex, no AI-generated XML. The AI never touches the XML — it only decides what change to make.
+All POM changes use Maven's own object model (`MavenXpp3Reader`/`MavenXpp3Writer`). No string replacement, no regex, no AI-generated XML. The agent picks which operation to run — it never writes XML directly.
 
 ### Generated CI workflow
 

@@ -82,6 +82,24 @@ Clears the agent's session memory. The next message starts a fresh conversation 
 
 Exits Loopy cleanly.
 
+### `/btw`
+
+Ask a side question without interrupting your session context. A stateless single LLM call — the question and answer are shown in the TUI but are never added to the agent's conversation history.
+
+```
+/btw <question>
+```
+
+```
+/btw what's the difference between @RestController and @Controller?
+/btw how do I enable H2 console in Spring Boot?
+/btw what does spring.jpa.hibernate.ddl-auto=update do?
+/btw is Testcontainers supported in Spring Boot 3+?
+/btw what's the default port for a Spring Boot app?
+```
+
+Useful for quick reference lookups while keeping your agent session focused on the main task.
+
 ### `/skills`
 
 Discover, search, install, and manage domain skills. Skills teach agents domain expertise — curated knowledge packages that make agents smarter.
@@ -113,10 +131,11 @@ Use `/skills info <name>` to see both install paths.
 
 ### `/boot-new`
 
-Scaffold a new Spring Boot project from a bundled template.
+Scaffold a new Spring Boot project from a bundled template. Accepts structured flags or plain natural language.
 
 ```
 /boot-new --template <name> --name <project-name> --group <group-id> [--no-llm]
+/boot-new <natural language description>
 ```
 
 | Template | Description |
@@ -127,11 +146,21 @@ Scaffold a new Spring Boot project from a bundled template.
 | `spring-ai-app` | Spring AI app with ChatClient wiring |
 
 ```
+# Structured flags
 /boot-new --template spring-boot-rest --name products-api --group com.acme
 /boot-new --template spring-boot-jpa --name inventory --group com.example --no-llm
+/boot-new --name my-agent --group io.myorg --template spring-ai-app
+/boot-new --name widget-service --group com.corp --java-version 17 --no-llm
+
+# Natural language — agent extracts name, group, template, Java version
+/boot-new a REST API called orders-api for com.acme
+/boot-new create a JPA project named catalog-service for com.corp with Java 17
+/boot-new I need a minimal Spring Boot app named hello-world for io.example
+/boot-new scaffold a Spring AI application for com.myorg called assistant-bot
+/boot-new REST + JPA service named inventory-api, group com.warehouse, Java 21
 ```
 
-Use `--no-llm` to skip the optional AI customization pass (faster, no API call needed).
+Use `--no-llm` (structured path only) to skip the optional AI customization pass.
 
 ### `/starters`
 
@@ -164,32 +193,50 @@ Apply structural modifications to an existing Spring Boot project using natural 
 /boot-modify <intent>
 ```
 
-Common operations work instantly without any API call (keyword shortcuts). Natural-language variations go through a single lightweight AI classification call, then execute deterministically. The AI never writes POM XML.
+Your intent is routed to MiniAgent, which selects the right `@Tool` method based on what you asked. All POM mutations are deterministic (Maven object model — no AI-generated XML). Any natural language variation of an intent works.
 
 **Examples:**
 
 ```
-# Instant keyword shortcuts — no API call
+# Java version
 /boot-modify set java version 21
+/boot-modify upgrade to Java 21
+/boot-modify use Java 17
+
+# POM cleanup
 /boot-modify clean pom
+/boot-modify remove empty fields from pom.xml
+
+# Native image
 /boot-modify add native image support
-/boot-modify add spring format enforcement
+/boot-modify enable GraalVM compilation
+/boot-modify remove native image support
+
+# Observability and security
 /boot-modify add actuator
-/boot-modify add security
-/boot-modify add multi-arch CI
-/boot-modify add basic CI workflow
-
-# Natural language — 1 fast classification call, then deterministic
 /boot-modify I need health check endpoints
-/boot-modify please make this project build for ARM
-/boot-modify add dependency com.example:my-lib:1.0
-/boot-modify remove the h2 dependency
+/boot-modify add spring security
+/boot-modify add authentication
 
-# Open-ended — full AI agent
-/boot-modify configure multi-module build
+# CI/CD
+/boot-modify add basic CI workflow
+/boot-modify add GitHub Actions for Maven
+/boot-modify add multi-arch CI
+/boot-modify build native for ARM64 and x86
+
+# Dependency management
+/boot-modify add dependency org.springframework.boot:spring-boot-starter-web
+/boot-modify add org.mapstruct:mapstruct
+/boot-modify add com.example:my-library:2.1.0
+/boot-modify remove the h2 dependency
+/boot-modify drop org.postgresql:postgresql
+
+# Code style
+/boot-modify add spring format enforcement
+/boot-modify enforce Spring Java Format
 ```
 
-See [Spring Boot Scaffolding](boot-scaffolding.md) for the full reference including all built-in operations.
+See [Spring Boot Scaffolding](boot-scaffolding.md) for the full operation reference.
 
 ### `/forge-agent`
 
