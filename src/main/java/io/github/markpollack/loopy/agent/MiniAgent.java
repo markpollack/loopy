@@ -34,7 +34,11 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.model.tool.DefaultToolCallingManager;
@@ -83,11 +87,15 @@ public class MiniAgent {
 
 	private final String conversationId;
 
+	/** Underlying model — used for grace turns when the advisor loop has terminated. */
+	private final ChatModel model;
+
 	/** Per-request model override — null means use the ChatModel's default. */
 	private volatile String modelOverride;
 
 	private MiniAgent(Builder builder) {
 		this.config = builder.config;
+		this.model = builder.model;
 		this.sessionMemory = builder.sessionMemory;
 		this.interactive = builder.interactive;
 		this.conversationId = builder.conversationId != null ? builder.conversationId : "default";
@@ -389,6 +397,22 @@ public class MiniAgent {
 			var state = e.getState();
 			log.warn("MiniAgent terminated: {} at turn {}", e.getReason(), state != null ? state.currentTurn() : 0);
 			int toolCalls = countingListener.getToolCallCount();
+			long totalTokens = state != null ? state.totalTokensUsed() : 0;
+			long inputTokens = state != null ? state.inputTokensUsed() : 0;
+			long outputTokens = state != null ? state.outputTokensUsed() : 0;
+			double cost = state != null ? state.estimatedCost() : 0.0;
+			int turns = state != null ? state.currentTurn() : 0;
+
+			if (e.getReason() == TerminationReason.MAX_TURNS_REACHED) {
+				// Grace turn: give the model one chance to summarize before returning
+				String graceOutput = tryGraceTurn(task, e.getPartialOutput(), config.systemPrompt());
+				if (graceOutput != null) {
+					log.info("Grace turn succeeded after max turns");
+					return new MiniAgentResult("COMPLETED_WITH_WARNING", graceOutput, turns, toolCalls, totalTokens,
+							inputTokens, outputTokens, cost);
+				}
+			}
+
 			String status = switch (e.getReason()) {
 				case MAX_TURNS_REACHED -> "TURN_LIMIT_REACHED";
 				case TIMEOUT -> "TIMEOUT";
@@ -397,9 +421,8 @@ public class MiniAgent {
 				case EXTERNAL_SIGNAL -> "ABORTED";
 				default -> "TERMINATED";
 			};
-			return new MiniAgentResult(status, e.getPartialOutput(), state != null ? state.currentTurn() : 0, toolCalls,
-					state != null ? state.totalTokensUsed() : 0, state != null ? state.inputTokensUsed() : 0,
-					state != null ? state.outputTokensUsed() : 0, state != null ? state.estimatedCost() : 0.0);
+			return new MiniAgentResult(status, e.getPartialOutput(), turns, toolCalls, totalTokens, inputTokens,
+					outputTokens, cost);
 		}
 		catch (Exception e) {
 			// Catch-all for unhandled errors (e.g., unknown tool name, model quirks).
@@ -442,6 +465,42 @@ public class MiniAgent {
 	public void setModelOverride(String model) {
 		this.modelOverride = model;
 		log.debug("Model override set to: {}", model);
+	}
+
+	/**
+	 * Makes one tool-free LLM call asking the model to summarize after max turns. Returns
+	 * the grace output, or null if the call fails or returns blank.
+	 */
+	String tryGraceTurn(String task, String partialOutput, String systemPrompt) {
+		return tryGraceTurn(model, task, partialOutput, systemPrompt);
+	}
+
+	/**
+	 * Makes one tool-free LLM call asking the model to summarize after max turns. Returns
+	 * the grace output, or null if the call fails or returns blank.
+	 */
+	static String tryGraceTurn(ChatModel chatModel, String task, String partialOutput, String systemPrompt) {
+		try {
+			log.info("Attempting grace turn after max turns reached");
+			var messages = new ArrayList<org.springframework.ai.chat.messages.Message>();
+			messages.add(new SystemMessage(systemPrompt));
+			messages.add(new UserMessage(task));
+			if (partialOutput != null && !partialOutput.isBlank()) {
+				messages.add(new AssistantMessage(partialOutput));
+			}
+			messages.add(new UserMessage(
+					"You have reached the turn limit. Please provide your best answer based on your progress so far. Be concise."));
+			ChatResponse response = chatModel.call(new Prompt(messages));
+			if (response == null || response.getResult() == null) {
+				return null;
+			}
+			String text = response.getResult().getOutput().getText();
+			return (text != null && !text.isBlank()) ? text : null;
+		}
+		catch (Exception ex) {
+			log.warn("Grace turn failed: {}", ex.getMessage());
+			return null;
+		}
 	}
 
 	/**
@@ -773,7 +832,8 @@ public class MiniAgent {
 	/**
 	 * Result of a MiniAgent execution.
 	 *
-	 * @param status Status of the execution (COMPLETED, TURN_LIMIT_REACHED, FAILED)
+	 * @param status Status of the execution (COMPLETED, COMPLETED_WITH_WARNING,
+	 * TURN_LIMIT_REACHED, FAILED)
 	 * @param output The agent's final output (may be partial if turn limit reached)
 	 * @param turnsCompleted Number of turns (LLM call + tool execution cycles) completed
 	 * @param toolCallsExecuted Number of tool calls executed across all turns
@@ -794,6 +854,10 @@ public class MiniAgent {
 
 		public boolean isTurnLimitReached() {
 			return "TURN_LIMIT_REACHED".equals(status);
+		}
+
+		public boolean isCompletedWithWarning() {
+			return "COMPLETED_WITH_WARNING".equals(status);
 		}
 	}
 

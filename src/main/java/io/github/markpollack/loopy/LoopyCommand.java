@@ -176,7 +176,7 @@ public class LoopyCommand implements Callable<Integer> {
 				System.out.println(result.output());
 			}
 			System.err.println(formatCost(result));
-			return result.isSuccess() ? 0 : 1;
+			return (result.isSuccess() || result.isCompletedWithWarning()) ? 0 : 1;
 		}
 		catch (Exception ex) {
 			System.err.println("Error: " + ex.getMessage());
