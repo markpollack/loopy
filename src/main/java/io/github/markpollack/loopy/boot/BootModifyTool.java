@@ -37,7 +37,7 @@ public class BootModifyTool {
 	@Tool(description = "Set the Java version in the project's pom.xml (java.version property and compiler plugin)")
 	public String setJavaVersion(@ToolParam(description = "Java major version number, e.g. 21 or 17") int version) {
 		return withMutator(mutator -> RecipeCatalog.execute("SET_JAVA_VERSION",
-				java.util.Map.of("javaVersion", String.valueOf(version)), mutator, workingDirectory));
+				java.util.Map.of("version", String.valueOf(version)), mutator, workingDirectory));
 	}
 
 	@Tool(description = "Clean pom.xml by removing empty, null, or redundant fields — normalizes formatting")
