@@ -7,8 +7,8 @@ This guide walks you through installing Loopy, setting up your API key, and runn
 ### Option 1: Fat JAR (recommended)
 
 ```bash
-curl -LO https://github.com/markpollack/loopy/releases/download/v0.2.0/loopy-0.2.0-SNAPSHOT.jar
-java -jar loopy-0.2.0-SNAPSHOT.jar
+curl -LO https://github.com/markpollack/loopy/releases/download/v0.3.0/loopy-0.3.0-SNAPSHOT.jar
+java -jar loopy-0.3.0-SNAPSHOT.jar
 ```
 
 ### Option 2: Build from source
@@ -17,7 +17,7 @@ java -jar loopy-0.2.0-SNAPSHOT.jar
 git clone https://github.com/markpollack/loopy.git
 cd loopy
 ./mvnw package -DskipTests
-java -jar target/loopy-0.2.0-SNAPSHOT.jar
+java -jar target/loopy-0.3.0-SNAPSHOT.jar
 ```
 
 ## Prerequisites
