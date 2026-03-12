@@ -18,6 +18,7 @@ import org.springaicommunity.agent.tools.FileSystemTools;
 import org.springaicommunity.agent.tools.SkillsTool;
 import org.springaicommunity.agent.tools.GlobTool;
 import org.springaicommunity.agent.tools.GrepTool;
+import org.springaicommunity.agent.tools.ListDirectoryTool;
 import org.springaicommunity.agent.tools.SmartWebFetchTool;
 import org.springaicommunity.agent.tools.TodoWriteTool;
 import org.springaicommunity.agent.tools.task.TaskOutputTool;
@@ -103,6 +104,7 @@ public class MiniAgent {
 		annotatedToolObjects.add(new BashTool(config.workingDirectory(), config.commandTimeout()));
 		annotatedToolObjects.add(GlobTool.builder().workingDirectory(config.workingDirectory()).build());
 		annotatedToolObjects.add(GrepTool.builder().workingDirectory(config.workingDirectory()).build());
+		annotatedToolObjects.add(ListDirectoryTool.builder().workingDirectory(config.workingDirectory()).build());
 		annotatedToolObjects.add(new SubmitTool());
 		annotatedToolObjects.add(TodoWriteTool.builder().build());
 

@@ -23,6 +23,7 @@ public record MiniAgentConfig(String systemPrompt, int maxTurns, double costLimi
 			- bash: Execute shell commands (git, ./mvnw, ./gradlew, javac, docker, etc.)
 			- Glob: Find files by pattern
 			- Grep: Search file contents by regex
+			- ListDirectory: List directory contents (files and subdirectories, with optional depth)
 			- TodoWrite: Track progress on multi-step tasks
 			- Task: Delegate to specialized sub-agents for complex exploration
 			- AskUserQuestion: Ask the user a clarifying question (interactive mode only)
@@ -37,6 +38,7 @@ public record MiniAgentConfig(String systemPrompt, int maxTurns, double costLimi
 
 			Use dedicated tools — never bash for file operations:
 			- File search: Glob (not `find` or `ls`)
+			- Directory listing: ListDirectory (not `bash ls`)
 			- Content search: Grep (not `grep` or `rg`)
 			- Read files: Read (not `cat`/`head`/`tail`)
 			- Edit files: Edit (not `sed`/`awk`)
