@@ -221,12 +221,13 @@ The embedded agent has access to:
 | `Edit` | Make targeted edits to existing files |
 | `Glob` | Find files by pattern |
 | `Grep` | Search file contents |
+| `ListDirectory` | List directory contents with optional depth and result limit |
 | `Skill` | Load domain skills for task-relevant expertise |
 | `Submit` | Submit final answer (ends the agent loop) |
 | `TodoWrite` | Track work items |
 | `Task` | Delegate to specialized subagents — each runs in an isolated context window with its own system prompt, tools, and optional model. Four built-in subagents: `Explore`, `General-Purpose`, `Plan`, `Bash`. Custom subagents defined as Markdown files in `.claude/agents/`. See [Subagents](docs/subagents.md). |
 | `TaskOutput` | Retrieve results from background subagents launched with `run_in_background: true`. Supports blocking (`block: true`, default) and non-blocking poll modes. |
-| `AskUserQuestionTool` | Ask the user for clarification (TUI only) |
+| `AskUserQuestion` | Ask the user for clarification (TUI only) |
 | `WebSearch` | Web search (requires `BRAVE_API_KEY`) |
 | `WebFetch` | Fetch and summarize web pages (requires `BRAVE_API_KEY`) |
 

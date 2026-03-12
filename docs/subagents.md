@@ -37,7 +37,7 @@ Four subagents are available by default — no configuration required:
 
 | Subagent | Purpose | Tools |
 |----------|---------|-------|
-| `Explore` | Fast, read-only codebase exploration — find files, search code, analyze contents | Read, Grep, Glob |
+| `Explore` | Fast, read-only codebase exploration — find files, search code, analyze contents | Read, Grep, Glob, ListDirectory |
 | `General-Purpose` | Multi-step research and execution with full read/write access | All tools |
 | `Plan` | Software architect for designing implementation strategies and identifying trade-offs | Read-only + search |
 | `Bash` | Command execution specialist for git operations, builds, and terminal tasks | Bash only |
