@@ -17,18 +17,15 @@ import java.util.Map;
  * stem cell template.
  *
  * <p>
- * Accepts both structured flags and natural language:
+ * Accepts structured flags or natural language. Natural language is delegated to the
+ * agent loop, which uses {@link BootNewTool} via LLM tool calling to map the description
+ * to structured parameters — no homebrew NL parsing.
  * </p>
  *
  * <pre>
  * /boot-new --name orders-api --group com.acme --template spring-boot-rest --java-version 21
  * /boot-new a REST API called orders-service for com.acme using JDK 21
  * </pre>
- *
- * <p>
- * When no {@code --name} flag is present and a {@link ChatModel} is available, the args
- * are classified via {@link BootBriefClassifier} to extract structured parameters.
- * </p>
  */
 public class BootNewCommand implements SlashCommand {
 
@@ -62,23 +59,12 @@ public class BootNewCommand implements SlashCommand {
 	public String execute(String args, CommandContext context) {
 		Map<String, String> flags = new java.util.LinkedHashMap<>(parseFlags(args));
 
-		// NL fallback: if no --name flag and LLM is available, classify the free-form
-		// input
-		if (!flags.containsKey("name") && args != null && !args.isBlank() && chatModel != null) {
-			BootBriefClassifier classifier = new BootBriefClassifier(chatModel);
-			BootBriefClassifier.ClassifiedBrief classified = classifier.classify(args);
-			if (classified.hasName()) {
-				flags.putIfAbsent("name", classified.name());
-				if (classified.group() != null) {
-					flags.putIfAbsent("group", classified.group());
-				}
-				if (classified.template() != null) {
-					flags.putIfAbsent("template", classified.template());
-				}
-				if (classified.javaVersion() != null) {
-					flags.putIfAbsent("java-version", classified.javaVersion());
-				}
-			}
+		// NL fallback: no flags at all means free-form description — delegate to the
+		// agent loop so LLM tool calling maps the text to bootNew() parameters.
+		// If the input contains -- flags but no --name, fall through to return usage.
+		if (!flags.containsKey("name") && args != null && !args.isBlank() && !args.contains("--")) {
+			return context.agentDelegate()
+				.apply("Scaffold a new Spring Boot project. The user described it as: '" + args + "'");
 		}
 
 		String name = flags.get("name");

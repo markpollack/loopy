@@ -242,6 +242,10 @@ public class MiniAgent {
 			}
 		}
 
+		// Inject additional @Tool-annotated objects registered via
+		// Builder.additionalTools()
+		annotatedToolObjects.addAll(builder.additionalToolObjects);
+
 		// Convert @Tool annotated objects to ToolCallbacks and merge with direct
 		// callbacks
 		var annotatedCallbacks = ToolCallbacks.from(annotatedToolObjects.toArray());
@@ -567,6 +571,8 @@ public class MiniAgent {
 
 		private final List<AgentLoopListener> loopListeners = new ArrayList<>();
 
+		private final List<Object> additionalToolObjects = new ArrayList<>();
+
 		private Builder() {
 		}
 
@@ -694,6 +700,16 @@ public class MiniAgent {
 		 */
 		public Builder journalRun(Run journalRun) {
 			this.journalRun = journalRun;
+			return this;
+		}
+
+		/**
+		 * Register additional {@code @Tool}-annotated objects with the agent. Use this to
+		 * inject domain-specific tools (e.g. boot scaffolding, CI generation) without
+		 * creating a dependency from the agent layer to those packages.
+		 */
+		public Builder additionalTools(Object... tools) {
+			this.additionalToolObjects.addAll(Arrays.asList(tools));
 			return this;
 		}
 

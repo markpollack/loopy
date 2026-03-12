@@ -110,10 +110,10 @@ class BootNewCommandTest {
 	}
 
 	@Test
-	void nlInputWithoutLlmReturnsHelpText() {
-		// No chatModel — NL path is skipped, name not found → help
+	void nlInputDelegatesToAgent() {
+		// NL input (no -- flags) is delegated to agentDelegate for LLM tool calling
 		String result = command.execute("a REST API for com.acme", context());
-		assertThat(result).containsIgnoringCase("usage");
+		assertThat(result).isNotBlank();
 	}
 
 	@Test

@@ -15,6 +15,7 @@ import io.github.markpollack.loopy.agent.MiniAgentConfig;
 import io.github.markpollack.loopy.boot.BootAddCommand;
 import io.github.markpollack.loopy.boot.BootModifyCommand;
 import io.github.markpollack.loopy.boot.BootNewCommand;
+import io.github.markpollack.loopy.boot.BootNewTool;
 import io.github.markpollack.loopy.boot.BootSetupCommand;
 import io.github.markpollack.loopy.boot.StartersCommand;
 import io.github.markpollack.loopy.command.BtwCommand;
@@ -123,7 +124,7 @@ public class LoopyCommand implements Callable<Integer> {
 		Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
 		CommandContext ctx = new CommandContext(workDir, finalAgent != null ? finalAgent::clearSession : () -> {
 		}, finalAgent != null ? finalAgent::setModelOverride : model -> {
-		});
+		}, finalAgent != null ? prompt -> finalAgent.run(prompt).output() : prompt -> "Agent not available");
 
 		java.util.function.Supplier<Model> chatScreenFactory;
 		if (finalAgent != null) {
@@ -199,6 +200,22 @@ public class LoopyCommand implements Callable<Integer> {
 			SlashCommandRegistry registry = createCommandRegistry(this.chatModel, modelCommand);
 			Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
 
+			// Build CommandContext once with lazy lambdas — agent may not exist yet
+			// when the first slash command runs, so lambdas dereference agentRef at
+			// call time rather than construction time
+			CommandContext ctx = new CommandContext(workDir, () -> {
+				if (agentRef[0] != null)
+					agentRef[0].clearSession();
+			}, m -> {
+				if (agentRef[0] != null)
+					agentRef[0].setModelOverride(m);
+			}, prompt -> {
+				if (agentRef[0] == null) {
+					agentRef[0] = createAgent(this.chatModel, true, true, journalRun);
+				}
+				return agentRef[0].run(prompt).output();
+			});
+
 			writer.println("Loopy REPL — type /help for commands, /exit to quit");
 			writer.println();
 
@@ -218,10 +235,6 @@ public class LoopyCommand implements Callable<Integer> {
 
 				// Slash command dispatch
 				if (line.startsWith("/")) {
-					MiniAgent agent = agentRef[0];
-					CommandContext ctx = new CommandContext(workDir, agent != null ? agent::clearSession : () -> {
-					}, agent != null ? agent::setModelOverride : m -> {
-					});
 					var cmdResult = registry.dispatch(line, ctx);
 					if (cmdResult.isPresent()) {
 						String result = cmdResult.get();
@@ -314,7 +327,10 @@ public class LoopyCommand implements Callable<Integer> {
 			config = config.apply(b -> b.systemPrompt(basePrompt + "\n\n## Project Instructions\n" + claudeMd));
 		}
 
-		var builder = MiniAgent.builder().config(config).model(chatModel);
+		var builder = MiniAgent.builder()
+			.config(config)
+			.model(chatModel)
+			.additionalTools(new BootNewTool(workDir, chatModel));
 
 		// Apply model override from -m flag (also used for cost estimation)
 		if (this.model != null) {
