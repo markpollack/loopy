@@ -15,6 +15,7 @@ import io.github.markpollack.loopy.agent.MiniAgentConfig;
 import io.github.markpollack.loopy.boot.BootAddCommand;
 import io.github.markpollack.loopy.boot.BootModifyCommand;
 import io.github.markpollack.loopy.boot.BootNewCommand;
+import io.github.markpollack.loopy.boot.BootModifyTool;
 import io.github.markpollack.loopy.boot.BootNewTool;
 import io.github.markpollack.loopy.boot.BootSetupCommand;
 import io.github.markpollack.loopy.boot.StartersCommand;
@@ -296,7 +297,7 @@ public class LoopyCommand implements Callable<Integer> {
 		registry.register(new BootSetupCommand(chatModel));
 		registry.register(new StartersCommand());
 		registry.register(new BootAddCommand(chatModel));
-		registry.register(new BootModifyCommand(chatModel));
+		registry.register(new BootModifyCommand());
 		registry.register(new QuitCommand());
 		return registry;
 	}
@@ -330,7 +331,7 @@ public class LoopyCommand implements Callable<Integer> {
 		var builder = MiniAgent.builder()
 			.config(config)
 			.model(chatModel)
-			.additionalTools(new BootNewTool(workDir, chatModel));
+			.additionalTools(new BootNewTool(workDir, chatModel), new BootModifyTool(workDir));
 
 		// Apply model override from -m flag (also used for cost estimation)
 		if (this.model != null) {

@@ -94,13 +94,11 @@ class DetectorsTest {
 	// --- BootModifyCommand deterministic operations ---
 
 	@Test
-	void bootModifySetJavaVersionDeterministic() throws Exception {
+	void bootModifyToolSetJavaVersion() throws Exception {
 		Files.writeString(tempDir.resolve("pom.xml"), pomWithProperty("java.version", "17"));
-		var command = new io.github.markpollack.loopy.boot.BootModifyCommand(null);
-		var ctx = new io.github.markpollack.loopy.command.CommandContext(tempDir, () -> {
-		});
+		var tool = new io.github.markpollack.loopy.boot.BootModifyTool(tempDir);
 
-		String result = command.execute("set java version 21", ctx);
+		String result = tool.setJavaVersion(21);
 
 		assertThat(result).contains("21");
 		String pom = Files.readString(tempDir.resolve("pom.xml"));
@@ -108,7 +106,7 @@ class DetectorsTest {
 	}
 
 	@Test
-	void bootModifyCleanPomDeterministic() throws Exception {
+	void bootModifyToolCleanPom() throws Exception {
 		String pom = """
 				<?xml version="1.0" encoding="UTF-8"?>
 				<project>
@@ -125,11 +123,9 @@ class DetectorsTest {
 				</project>
 				""";
 		Files.writeString(tempDir.resolve("pom.xml"), pom);
-		var command = new io.github.markpollack.loopy.boot.BootModifyCommand(null);
-		var ctx = new io.github.markpollack.loopy.command.CommandContext(tempDir, () -> {
-		});
+		var tool = new io.github.markpollack.loopy.boot.BootModifyTool(tempDir);
 
-		String result = command.execute("clean pom", ctx);
+		String result = tool.cleanPom();
 
 		assertThat(result).containsIgnoringCase("cleaned");
 	}
