@@ -51,6 +51,12 @@ public class ChatScreen implements Model {
 	private record AgentErrorMessage(String text, Throwable cause) implements Message {
 	}
 
+	private record CommandReplyMessage(String input, String result) implements Message {
+	}
+
+	private record CommandQuitMessage(String input) implements Message {
+	}
+
 	// --- Fields ---
 
 	private final TextInput input;
@@ -165,8 +171,8 @@ public class ChatScreen implements Model {
 	}
 
 	/**
-	 * Handles async agent response messages. Returns null if message is not an async
-	 * type.
+	 * Handles async response messages (agent replies, command replies, quit). Returns
+	 * null if message is not an async type.
 	 */
 	private UpdateResult<? extends Model> handleAsyncMessage(Message msg) {
 		if (msg instanceof AgentReplyMessage reply) {
@@ -179,31 +185,48 @@ public class ChatScreen implements Model {
 			this.waiting = false;
 			return UpdateResult.from(this);
 		}
+		if (msg instanceof CommandReplyMessage reply) {
+			this.history.add(ChatEntry.user(reply.input()));
+			this.history.add(ChatEntry.system(reply.result()));
+			this.waiting = false;
+			return UpdateResult.from(this);
+		}
+		if (msg instanceof CommandQuitMessage quit) {
+			this.history.add(ChatEntry.user(quit.input()));
+			this.history.add(ChatEntry.system("⎿  Goodbye!"));
+			this.waiting = false;
+			return UpdateResult.from(this, QuitMessage::new);
+		}
 		return null;
 	}
 
 	/**
-	 * Submits user input. Slash commands are synchronous. Agent calls are async via
-	 * Command thunks.
+	 * Submits user input. Slash commands and agent calls are both async via Command
+	 * thunks to avoid blocking the TUI event loop.
 	 */
 	private UpdateResult<ChatScreen> submitInput(String text) {
-		// Try slash command dispatch first (synchronous)
-		if (this.commandDispatcher != null) {
-			Optional<String> commandResult = this.commandDispatcher.apply(text, null);
-			if (commandResult.isPresent()) {
-				String result = commandResult.get();
-				// /exit or /quit — show goodbye then quit
-				if (QuitCommand.QUIT_SENTINEL.equals(result)) {
-					this.history.add(ChatEntry.user(text));
-					this.history.add(ChatEntry.system("⎿  Goodbye!"));
-					this.input.setValue("");
-					return UpdateResult.from(this, QuitMessage::new);
+		// Slash commands: dispatch asynchronously so long-running commands (LLM-backed
+		// /boot-new, /boot-add, etc.) don't freeze the event loop.
+		if (this.commandDispatcher != null && text.startsWith("/")) {
+			this.input.setValue("");
+			this.waiting = true;
+			this.spinner = new Spinner(SpinnerType.DOT);
+
+			Command commandCall = () -> {
+				try {
+					Optional<String> result = this.commandDispatcher.apply(text, null);
+					String output = result.orElse("Unknown command: " + text.split("\\s+")[0]);
+					if (QuitCommand.QUIT_SENTINEL.equals(output)) {
+						return new CommandQuitMessage(text);
+					}
+					return new CommandReplyMessage(text, output);
 				}
-				this.history.add(ChatEntry.user(text));
-				this.history.add(ChatEntry.system(result));
-				this.input.setValue("");
-				return UpdateResult.from(this);
-			}
+				catch (Exception ex) {
+					return new CommandReplyMessage(text, "Error: " + ex.getMessage());
+				}
+			};
+
+			return UpdateResult.from(this, batch(commandCall, spinner.init()));
 		}
 
 		// Async agent call
@@ -308,9 +331,9 @@ public class ChatScreen implements Model {
 	}
 
 	/**
-	 * Sets the input value directly. Package-private for testing.
+	 * Sets the input value directly. For testing.
 	 */
-	void setInputValue(String value) {
+	public void setInputValue(String value) {
 		this.input.setValue(value);
 	}
 

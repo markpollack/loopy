@@ -16,16 +16,19 @@ import java.util.Map;
  * {@code /boot-new} slash command — scaffolds a new Spring Boot project from a bundled
  * stem cell template.
  *
- * <pre>
- * Usage: /boot-new --name &lt;name&gt; [--group &lt;groupId&gt;] [--template &lt;template&gt;] [--no-llm]
+ * <p>
+ * Accepts both structured flags and natural language:
+ * </p>
  *
- * Options:
- *   --name       Project name (required). Used as directory name and artifactId.
- *   --group      Maven groupId (required on first use; saved to prefs after).
- *   --template   Template: spring-boot-minimal (default), spring-boot-rest,
- *                          spring-boot-jpa, spring-ai-app
- *   --no-llm     Skip the LLM customisation step (deterministic-only mode).
+ * <pre>
+ * /boot-new --name orders-api --group com.acme --template spring-boot-rest --java-version 21
+ * /boot-new a REST API called orders-service for com.acme using JDK 21
  * </pre>
+ *
+ * <p>
+ * When no {@code --name} flag is present and a {@link ChatModel} is available, the args
+ * are classified via {@link BootBriefClassifier} to extract structured parameters.
+ * </p>
  */
 public class BootNewCommand implements SlashCommand {
 
@@ -57,9 +60,27 @@ public class BootNewCommand implements SlashCommand {
 
 	@Override
 	public String execute(String args, CommandContext context) {
-		Map<String, String> flags = parseFlags(args);
+		Map<String, String> flags = new java.util.LinkedHashMap<>(parseFlags(args));
 
-		// Validate --name (required)
+		// NL fallback: if no --name flag and LLM is available, classify the free-form
+		// input
+		if (!flags.containsKey("name") && args != null && !args.isBlank() && chatModel != null) {
+			BootBriefClassifier classifier = new BootBriefClassifier(chatModel);
+			BootBriefClassifier.ClassifiedBrief classified = classifier.classify(args);
+			if (classified.hasName()) {
+				flags.putIfAbsent("name", classified.name());
+				if (classified.group() != null) {
+					flags.putIfAbsent("group", classified.group());
+				}
+				if (classified.template() != null) {
+					flags.putIfAbsent("template", classified.template());
+				}
+				if (classified.javaVersion() != null) {
+					flags.putIfAbsent("java-version", classified.javaVersion());
+				}
+			}
+		}
+
 		String name = flags.get("name");
 		if (name == null || name.isBlank()) {
 			return helpText();
@@ -71,6 +92,7 @@ public class BootNewCommand implements SlashCommand {
 		}
 
 		String groupId = flags.get("group");
+		String javaVersion = flags.get("java-version");
 		boolean noLlm = flags.containsKey("no-llm");
 
 		// groupId required: from arg or saved prefs
@@ -79,16 +101,17 @@ public class BootNewCommand implements SlashCommand {
 			groupId = prefs.groupId();
 		}
 		if (groupId == null) {
-			return "Error: --group is required on first use.\n" + "Example: /boot-new --name my-app --group com.acme\n"
-					+ "After the first run it is saved to preferences automatically.";
+			return "No groupId found. Run /boot-setup to set your defaults (groupId, Java version, "
+					+ "always-add deps), then retry.\n"
+					+ "Or provide it inline: /boot-new --name my-app --group com.acme";
 		}
 
 		String artifactId = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9-]", "-");
-		BootBrief brief = new BootBrief(name, groupId, artifactId, null, template, null);
+		BootBrief brief = new BootBrief(name, groupId, artifactId, null, template, javaVersion);
 
 		try {
 			String result = ScaffoldGraph.execute(brief, noLlm, context.workingDirectory(), chatModel);
-			savePreferences(prefs, groupId);
+			savePreferences(prefs, groupId, javaVersion);
 			return result;
 		}
 		catch (Exception ex) {
@@ -97,8 +120,9 @@ public class BootNewCommand implements SlashCommand {
 		}
 	}
 
-	private void savePreferences(BootPreferences existing, String effectiveGroupId) {
-		String jv = existing.javaVersion() != null ? existing.javaVersion() : "21";
+	private void savePreferences(BootPreferences existing, String effectiveGroupId, @Nullable String javaVersion) {
+		String jv = javaVersion != null ? javaVersion
+				: (existing.javaVersion() != null ? existing.javaVersion() : "21");
 		new BootPreferences(jv, effectiveGroupId, existing.alwaysAdd(), existing.preferDatabase()).save();
 	}
 
@@ -128,15 +152,19 @@ public class BootNewCommand implements SlashCommand {
 
 	private static String helpText() {
 		return """
-				Usage: /boot-new --name <name> [--group <groupId>] [--template <template>] [--no-llm]
+				Usage: /boot-new --name <name> [--group <groupId>] [--template <template>] [--java-version <ver>] [--no-llm]
+				       /boot-new <natural language description>
 
-				  --name      Project name (required). Also used as directory name and artifactId.
-				  --group     Maven groupId (required on first use; saved to preferences).
-				  --template  One of: spring-boot-minimal (default), spring-boot-rest,
-				              spring-boot-jpa, spring-ai-app
-				  --no-llm    Skip LLM customisation — deterministic only.
+				  --name          Project name. Also used as directory name and artifactId.
+				  --group         Maven groupId (required on first use; saved to preferences).
+				  --template      One of: spring-boot-minimal (default), spring-boot-rest,
+				                  spring-boot-jpa, spring-ai-app
+				  --java-version  Java major version (default: 21). Saved to preferences.
+				  --no-llm        Skip LLM customisation — deterministic only.
 
-				Example: /boot-new --name products-api --group com.acme --template spring-boot-rest""";
+				Examples:
+				  /boot-new --name products-api --group com.acme --template spring-boot-rest
+				  /boot-new a REST API called orders-service for com.acme using JDK 21""";
 	}
 
 }

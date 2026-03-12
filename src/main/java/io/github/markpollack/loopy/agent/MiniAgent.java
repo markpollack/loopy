@@ -20,8 +20,10 @@ import org.springaicommunity.agent.tools.GlobTool;
 import org.springaicommunity.agent.tools.GrepTool;
 import org.springaicommunity.agent.tools.SmartWebFetchTool;
 import org.springaicommunity.agent.tools.TodoWriteTool;
+import org.springaicommunity.agent.tools.task.TaskOutputTool;
 import org.springaicommunity.agent.tools.task.TaskTool;
 import org.springaicommunity.agent.tools.task.repository.DefaultTaskRepository;
+import org.springaicommunity.agent.tools.task.claude.ClaudeSubagentReferences;
 import org.springaicommunity.agent.tools.task.claude.ClaudeSubagentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,11 +127,74 @@ public class MiniAgent {
 		// Add TaskTool for sub-agent delegation (returns ToolCallback directly)
 		if (!builder.disabledTools.contains("Task")) {
 			var taskRepository = new DefaultTaskRepository();
-			var claudeSubagentType = ClaudeSubagentType.builder()
-				.chatClientBuilder("default", ChatClient.builder(builder.model))
-				.build();
-			directCallbacks
-				.add(TaskTool.builder().taskRepository(taskRepository).subagentTypes(claudeSubagentType).build());
+
+			// Multi-model routing: register tier aliases so subagent definitions
+			// using model: haiku / sonnet route to appropriately-priced models.
+			// Uses the same ChatModel with a per-request ChatOptions model override —
+			// no separate API credentials needed.
+			var subagentTypeBuilder = ClaudeSubagentType.builder()
+				.chatClientBuilder("default", ChatClient.builder(builder.model));
+			if (builder.compactionModelName != null) {
+				subagentTypeBuilder.chatClientBuilder("haiku", ChatClient.builder(builder.model)
+					.defaultOptions(ChatOptions.builder().model(builder.compactionModelName).build()));
+			}
+			if (builder.modelName != null) {
+				subagentTypeBuilder.chatClientBuilder("sonnet", ChatClient.builder(builder.model)
+					.defaultOptions(ChatOptions.builder().model(builder.modelName).build()));
+			}
+
+			// Propagate skills directories so subagents share the same knowledge base
+			// as the main agent
+			var subagentProjectSkillsDir = config.workingDirectory().resolve(".claude/skills");
+			if (java.nio.file.Files.isDirectory(subagentProjectSkillsDir)) {
+				subagentTypeBuilder.skillsDirectories(subagentProjectSkillsDir.toString());
+			}
+			var subagentGlobalSkillsDir = java.nio.file.Path.of(System.getProperty("user.home"), ".claude", "skills");
+			if (java.nio.file.Files.isDirectory(subagentGlobalSkillsDir)) {
+				subagentTypeBuilder.skillsDirectories(subagentGlobalSkillsDir.toString());
+			}
+
+			// Build TaskTool with custom subagent definitions from .claude/agents/
+			var taskToolBuilder = TaskTool.builder()
+				.taskRepository(taskRepository)
+				.subagentTypes(subagentTypeBuilder.build());
+
+			// Project-level custom agents: .claude/agents/*.md in working directory.
+			// Filter to files with valid YAML frontmatter (name: + description:) —
+			// Claude Code native agent files use plain markdown headings and would
+			// cause ClaudeSubagentDefinition.getName() to throw NPE.
+			var projectAgentsDir = config.workingDirectory().resolve(".claude/agents");
+			if (java.nio.file.Files.isDirectory(projectAgentsDir)) {
+				var projectRefs = ClaudeSubagentReferences.fromRootDirectory(projectAgentsDir.toString())
+					.stream()
+					.filter(ref -> hasNamedFrontmatter(ref.uri()))
+					.toList();
+				if (!projectRefs.isEmpty()) {
+					taskToolBuilder.subagentReferences(projectRefs);
+					log.debug("Loaded {} custom subagent(s) from {}", projectRefs.size(), projectAgentsDir);
+				}
+			}
+
+			// Global custom agents: ~/.claude/agents/*.md — same filter applies
+			var globalAgentsDir = java.nio.file.Path.of(System.getProperty("user.home"), ".claude", "agents");
+			if (java.nio.file.Files.isDirectory(globalAgentsDir)) {
+				var globalRefs = ClaudeSubagentReferences.fromRootDirectory(globalAgentsDir.toString())
+					.stream()
+					.filter(ref -> hasNamedFrontmatter(ref.uri()))
+					.toList();
+				if (!globalRefs.isEmpty()) {
+					taskToolBuilder.subagentReferences(globalRefs);
+					log.debug("Loaded {} global subagent(s) from {}", globalRefs.size(), globalAgentsDir);
+				}
+			}
+
+			directCallbacks.add(taskToolBuilder.build());
+
+			// TaskOutputTool shares the same repository — required for background task
+			// result retrieval
+			if (!builder.disabledTools.contains("TaskOutput")) {
+				directCallbacks.add(TaskOutputTool.builder().taskRepository(taskRepository).build());
+			}
 		}
 
 		// Add SkillsTool for domain knowledge discovery (progressive disclosure)
@@ -434,6 +499,34 @@ public class MiniAgent {
 
 	private String truncate(String s, int max) {
 		return s == null || s.length() <= max ? s : s.substring(0, max) + "...";
+	}
+
+	/**
+	 * Returns true if the markdown file at {@code filePath} has a YAML frontmatter block
+	 * that contains both {@code name:} and {@code description:} keys — the minimum
+	 * required by
+	 * {@link org.springaicommunity.agent.tools.task.claude.ClaudeSubagentDefinition}.
+	 * <p>
+	 * Claude Code's native agent files use plain markdown headings with no frontmatter;
+	 * this filter excludes them rather than letting the build fail with an NPE.
+	 */
+	private static boolean hasNamedFrontmatter(String filePath) {
+		try {
+			String content = java.nio.file.Files.readString(java.nio.file.Path.of(filePath));
+			if (!content.startsWith("---")) {
+				return false;
+			}
+			int closingDashes = content.indexOf("---", 3);
+			if (closingDashes < 0) {
+				return false;
+			}
+			String frontmatter = content.substring(3, closingDashes);
+			return frontmatter.contains("name:") && frontmatter.contains("description:");
+		}
+		catch (Exception ex) {
+			log.debug("Skipping agent file {} — could not read: {}", filePath, ex.getMessage());
+			return false;
+		}
 	}
 
 	// --- Builder ---

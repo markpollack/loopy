@@ -98,9 +98,15 @@ class ChatScreenTest {
 				(input, ctx) -> input.startsWith("/") ? Optional.of("command result") : Optional.empty());
 
 		screen.setInputValue("/help");
-		pressEnter(screen);
+		UpdateResult<? extends Model> submitResult = pressEnter(screen);
 
-		// Slash commands are synchronous — both entries added immediately
+		// Slash commands are async — waiting immediately, history empty until reply
+		assertThat(screen.isWaiting()).isTrue();
+		assertThat(screen.history()).isEmpty();
+
+		Message replyMsg = executeCommand(submitResult.command());
+		screen.update(replyMsg);
+
 		assertThat(screen.history()).hasSize(2);
 		assertThat(screen.history().get(0)).isEqualTo(ChatEntry.user("/help"));
 		assertThat(screen.history().get(1)).isEqualTo(ChatEntry.system("command result"));
@@ -130,8 +136,13 @@ class ChatScreenTest {
 		screen.setInputValue("/quit");
 		UpdateResult<? extends Model> result = pressEnter(screen);
 
-		// Quit sentinel should produce a quit command and show goodbye in history
-		assertThat(result.command()).isNotNull();
+		// Quit command is async — execute thunk to get the CommandQuitMessage
+		assertThat(screen.isWaiting()).isTrue();
+		Message quitMsg = executeCommand(result.command());
+		UpdateResult<? extends Model> quitResult = screen.update(quitMsg);
+
+		// Quit should produce a quit command and show goodbye in history
+		assertThat(quitResult.command()).isNotNull();
 		assertThat(screen.history()).hasSize(2);
 		assertThat(screen.history().get(1).content()).contains("Goodbye");
 	}

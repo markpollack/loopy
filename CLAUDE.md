@@ -72,9 +72,11 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 |---------|-------------|
 | `/help` | List available commands |
 | `/clear` | Clear session memory |
+| `/btw` | Ask a side question without interrupting session context — stateless single LLM call, nothing added to conversation history |
 | `/quit` | Exit Loopy |
 | `/skills` | Discover, search, install, remove domain skills |
 | `/boot-new` | Scaffold a new Spring Boot project from a bundled template |
+| `/boot-setup` | One-time preferences wizard: groupId, Java version, always-add deps (top-5 curated + free-form NL via `--more`), preferred database. Saved to `~/.config/loopy/boot/preferences.yml`. `/boot-new` redirects here on first use. |
 | `/starters` | Discover Agent Starters; suggest by pom.xml triggers |
 | `/boot-add` | Bootstrap domain capabilities (Agent Starter) into existing project |
 | `/boot-modify` | Apply structural modifications (set java version, clean pom, add native support, etc.) |
@@ -84,7 +86,8 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 
 - **Single module** — packages provide sufficient separation for v1
 - **Slash commands intercepted in ChatScreen** — deterministic, no LLM tokens wasted
-- **Async Command thunks** — agent calls run on background thread via tui4j `Command`; spinner animates; `waiting` gates Enter
+- **Async Command thunks** — ALL input (agent calls AND slash commands) runs on a background thread via tui4j `Command`; spinner animates; `waiting` gates Enter. Prevents long-running slash commands (LLM-backed `/boot-new`, `/btw`, etc.) from freezing the event loop.
+- **`/btw` is stateless** — direct `ChatModel.call()`, no MiniAgent, no session memory. Answer appears in TUI history but is never added to the agent's conversation context.
 - **Forge code copied (not depended on)** — avoids transitive agent-client/claude-agent deps
 - **MiniAgent embedded (not depended on)** — first field agent, graduated from agent-harness nursery, evolves independently
 - **Jackson 2.20+ required** — Jackson 3 (from Spring AI) introspects Jackson 2 annotations for backwards compat

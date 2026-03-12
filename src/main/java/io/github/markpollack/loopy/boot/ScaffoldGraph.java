@@ -10,12 +10,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ChatModel;
 
+import io.github.markpollack.loopy.boot.modify.PomMutator;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 
 /**
  * Builds and executes the five-node scaffolding workflow graph for {@code /boot-new}.
@@ -57,6 +60,7 @@ public final class ScaffoldGraph {
 		b.node("apply-preferences", (GraphContext ctx, BootBrief br) -> applyPreferences(br));
 		b.node("extract-from-jar", (GraphContext ctx, BootBrief br) -> extractTemplate(br, targetDir));
 		b.node("deterministic-customize", (GraphContext ctx, BootBrief br) -> customizeTemplate(br, targetDir));
+		b.node("apply-always-deps", (GraphContext ctx, BootBrief br) -> applyAlwaysDeps(br, targetDir));
 		b.node("finish", (GraphContext ctx, BootBrief br) -> buildResultMessage(br, targetDir));
 		if (useLlm) {
 			final ChatModel model = chatModel;
@@ -68,7 +72,8 @@ public final class ScaffoldGraph {
 
 		b.edge("apply-preferences").to("extract-from-jar").and();
 		b.edge("extract-from-jar").to("deterministic-customize").and();
-		b.edge("deterministic-customize").to(useLlm ? "llm-domain-fill" : "finish").and();
+		b.edge("deterministic-customize").to("apply-always-deps").and();
+		b.edge("apply-always-deps").to(useLlm ? "llm-domain-fill" : "finish").and();
 		if (useLlm) {
 			b.edge("llm-domain-fill").to("finish").and();
 		}
@@ -107,6 +112,43 @@ public final class ScaffoldGraph {
 		renamePomGav(brief, targetDir);
 		if (brief.packageName() != null) {
 			new JavaParserRefactor().refactorPackage(targetDir, BootBrief.TEMPLATE_PACKAGE, brief.packageName());
+		}
+		return brief;
+	}
+
+	private static BootBrief applyAlwaysDeps(BootBrief brief, Path targetDir) {
+		List<String> alwaysAdd = BootPreferences.load().alwaysAdd();
+		if (alwaysAdd.isEmpty()) {
+			return brief;
+		}
+		PomMutator mutator = new PomMutator(targetDir.resolve("pom.xml"));
+		for (String coords : alwaysAdd) {
+			try {
+				if (coords.startsWith("plugin:")) {
+					// plugin:groupId:artifactId
+					String[] parts = coords.substring(7).split(":", 2);
+					if (parts.length != 2) {
+						logger.warn("Skipping malformed plugin entry '{}' (expected plugin:groupId:artifactId)",
+								coords);
+						continue;
+					}
+					String msg = mutator.addPlugin(parts[0], parts[1], null);
+					logger.debug(msg);
+				}
+				else {
+					// groupId:artifactId
+					String[] parts = coords.split(":", 2);
+					if (parts.length != 2) {
+						logger.warn("Skipping malformed dep entry '{}' (expected groupId:artifactId)", coords);
+						continue;
+					}
+					String msg = mutator.addDependency(parts[0], parts[1], null, null);
+					logger.debug(msg);
+				}
+			}
+			catch (Exception ex) {
+				logger.warn("Could not apply always entry {}: {}", coords, ex.getMessage());
+			}
 		}
 		return brief;
 	}
@@ -164,8 +206,13 @@ public final class ScaffoldGraph {
 					"<artifactId>" + brief.artifactId() + "</artifactId>");
 			pom = pom.replace("<name>" + BootBrief.TEMPLATE_ARTIFACT_ID + "</name>",
 					"<name>" + brief.name() + "</name>");
+			if (brief.javaVersion() != null) {
+				pom = pom.replaceAll("<java\\.version>\\d+</java\\.version>",
+						"<java.version>" + brief.javaVersion() + "</java.version>");
+			}
 			Files.writeString(pomPath, pom, StandardCharsets.UTF_8);
-			logger.debug("pom.xml GAV updated: {}:{}", brief.groupId(), brief.artifactId());
+			logger.debug("pom.xml GAV updated: {}:{}, java={}", brief.groupId(), brief.artifactId(),
+					brief.javaVersion());
 		}
 		catch (IOException ex) {
 			throw new UncheckedIOException("Failed to update pom.xml at " + pomPath, ex);

@@ -29,3 +29,8 @@ Thumbs.db
 # Claude Code / Forge plans (private)
 CLAUDE.md
 plans/
+
+# Spring CLI reference project templates (local dev only — bundled templates are in src/main/resources/templates/)
+rpt-*/
+spring-gs-catalog/
+template-catalog/

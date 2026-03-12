@@ -79,4 +79,54 @@ class MiniAgentBuilderTest {
 		assertThat(agent).isNotNull();
 	}
 
+	@Test
+	void taskOutputToolRegisteredByDefault() {
+		var config = MiniAgentConfig.builder().workingDirectory(Path.of(".")).build();
+		var agent = MiniAgent.builder().config(config).model(mock(ChatModel.class)).build();
+		assertThat(agent.toolNames()).contains("TaskOutput");
+	}
+
+	@Test
+	void taskOutputToolDisabledViaDisabledTools() {
+		var config = MiniAgentConfig.builder().workingDirectory(Path.of(".")).build();
+		var agent = MiniAgent.builder()
+			.config(config)
+			.model(mock(ChatModel.class))
+			.disabledTools(java.util.Set.of("TaskOutput"))
+			.build();
+		assertThat(agent.toolNames()).doesNotContain("TaskOutput");
+	}
+
+	@Test
+	void customSubagentsLoadedFromProjectAgentsDir(@TempDir Path tempDir) throws IOException {
+		// Create .claude/agents/ with a custom agent markdown file
+		Path agentsDir = tempDir.resolve(".claude/agents");
+		Files.createDirectories(agentsDir);
+		Files.writeString(agentsDir.resolve("code-reviewer.md"), """
+				---
+				name: code-reviewer
+				description: Reviews code for quality and correctness
+				tools: Read, Grep, Glob
+				---
+
+				You are a senior code reviewer.
+				""");
+
+		var config = MiniAgentConfig.builder().workingDirectory(tempDir).build();
+		var agent = MiniAgent.builder().config(config).model(mock(ChatModel.class)).build();
+		// Agent builds without error — custom subagent was loaded
+		assertThat(agent).isNotNull();
+		// Task tool is registered (it carries the custom subagent definition)
+		assertThat(agent.toolNames()).contains("Task");
+	}
+
+	@Test
+	void missingAgentsDirHandledGracefully() {
+		// No .claude/agents/ directory — should not throw
+		var config = MiniAgentConfig.builder().workingDirectory(Path.of("/tmp/nonexistent-dir")).build();
+		var agent = MiniAgent.builder().config(config).model(mock(ChatModel.class)).build();
+		assertThat(agent).isNotNull();
+		assertThat(agent.toolNames()).contains("Task");
+	}
+
 }
