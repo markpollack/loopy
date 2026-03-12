@@ -321,11 +321,10 @@ public class LoopyCommand implements Callable<Integer> {
 			.commandTimeout(Duration.ofSeconds(120))
 			.build();
 
-		// CLAUDE.md auto-injection — append to default system prompt
-		String claudeMd = readClaudeMd(workDir);
-		if (claudeMd != null) {
-			String basePrompt = config.systemPrompt();
-			config = config.apply(b -> b.systemPrompt(basePrompt + "\n\n## Project Instructions\n" + claudeMd));
+		// AGENTS.md + CLAUDE.md auto-injection — append to default system prompt
+		String injected = buildContextInjection(workDir, config.systemPrompt());
+		if (injected != null) {
+			config = config.apply(b -> b.systemPrompt(injected));
 		}
 
 		var builder = MiniAgent.builder()
@@ -446,11 +445,31 @@ public class LoopyCommand implements Callable<Integer> {
 			.start();
 	}
 
-	private String readClaudeMd(Path workDir) {
-		Path claudeMdPath = workDir.resolve("CLAUDE.md");
-		if (Files.isRegularFile(claudeMdPath)) {
+	/**
+	 * Builds the final system prompt by appending AGENTS.md and CLAUDE.md from the
+	 * working directory, in that order (CLAUDE.md is more specific, so it wins on
+	 * conflicts). Returns null if neither file exists.
+	 */
+	static String buildContextInjection(Path workDir, String basePrompt) {
+		String agentsMd = readFile(workDir.resolve("AGENTS.md"));
+		String claudeMd = readFile(workDir.resolve("CLAUDE.md"));
+		if (agentsMd == null && claudeMd == null) {
+			return null;
+		}
+		StringBuilder sb = new StringBuilder(basePrompt);
+		if (agentsMd != null) {
+			sb.append("\n\n## Project Instructions (AGENTS.md)\n").append(agentsMd);
+		}
+		if (claudeMd != null) {
+			sb.append("\n\n## Project Instructions (CLAUDE.md)\n").append(claudeMd);
+		}
+		return sb.toString();
+	}
+
+	private static String readFile(Path path) {
+		if (Files.isRegularFile(path)) {
 			try {
-				return Files.readString(claudeMdPath);
+				return Files.readString(path);
 			}
 			catch (IOException ex) {
 				// Silently ignore — not critical
