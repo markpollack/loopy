@@ -284,25 +284,8 @@ public class MiniAgent {
 
 		var toolCallingManager = DefaultToolCallingManager.builder()
 			.observationRegistry(registry)
-			.toolCallbackResolver(toolName -> {
-				var cb = toolsByLowerName.get(toolName.toLowerCase());
-				if (cb != null) {
-					return cb;
-				}
-				// Return bash tool as fallback for unknown tools — the model's call
-				// will likely fail but at least the loop continues instead of crashing.
-				// The error message from bash will inform the model.
-				log.warn("Unknown tool '{}', falling back to bash. Available: {}", toolName, toolsByLowerName.keySet());
-				return toolsByLowerName.get("bash");
-			})
-			.toolExecutionExceptionProcessor(ex -> {
-				String msg = ex.getMessage();
-				if (msg == null || msg.isBlank()) {
-					msg = "Tool error: " + ex.getCause().getClass().getSimpleName();
-				}
-				log.warn("Tool execution error (returning to model): {}", msg);
-				return msg;
-			})
+			.toolCallbackResolver(toolName -> resolveToolCallback(toolName, toolsByLowerName))
+			.toolExecutionExceptionProcessor(ex -> processToolError(ex))
 			.build();
 
 		// Build AgentLoopAdvisor with optional listener bridge
@@ -834,6 +817,33 @@ public class MiniAgent {
 			return answer;
 		}
 
+	}
+
+	/**
+	 * Resolves a tool callback by name, case-insensitively. Falls back to bash for
+	 * unknown tool names so the loop continues rather than crashing.
+	 */
+	static ToolCallback resolveToolCallback(String toolName, Map<String, ToolCallback> toolsByLowerName) {
+		var cb = toolsByLowerName.get(toolName.toLowerCase());
+		if (cb != null) {
+			return cb;
+		}
+		log.warn("Unknown tool '{}', falling back to bash. Available: {}", toolName, toolsByLowerName.keySet());
+		return toolsByLowerName.get("bash");
+	}
+
+	/**
+	 * Converts a tool execution exception into an error string returned to the model
+	 * instead of crashing the agent loop.
+	 */
+	static String processToolError(Exception ex) {
+		String msg = ex.getMessage();
+		if (msg == null || msg.isBlank()) {
+			Throwable cause = ex.getCause();
+			msg = "Tool error: " + (cause != null ? cause.getClass().getSimpleName() : ex.getClass().getSimpleName());
+		}
+		log.warn("Tool execution error (returning to model): {}", msg);
+		return msg;
 	}
 
 }
