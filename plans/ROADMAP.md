@@ -1,10 +1,10 @@
 # Roadmap: Loopy
 
-> **Last updated**: 2026-03-12
+> **Last updated**: 2026-03-13
 
 ## Overview
 
-Active roadmap for **Wave 2** — Agent Quality + Knowledge Activation. Completed waves (Build + Wave 1, Stages 1-6) archived at `plans/archive/roadmap-waves-0-1.md`.
+Active roadmap for **Wave 2** — Agent Quality + Modular Platform + Protocol Stack (MCP, ACP, A2A). Completed waves (Build + Wave 1, Stages 1-6) archived at `plans/archive/roadmap-waves-0-1.md`.
 
 ### Wave Summary
 
@@ -12,8 +12,8 @@ Active roadmap for **Wave 2** — Agent Quality + Knowledge Activation. Complete
 |------|--------|--------|-------|
 | **Build** | 1-4 | DONE | Foundation, TUI, MiniAgent, slash commands, `/forge-agent` (4.3 deferred) |
 | **Wave 1** | 5-6 | DONE | Context compaction, Spring Boot, multi-provider, cost visibility |
-| **Wave 2** | 7-9 | NEXT | Agent quality, protocol stack (Skills, MCP, ACP), knowledge activation |
-| **Wave 3** | 10+ | future | A2A, streaming, multi-model, observability, polish |
+| **Wave 2** | 7-11 | NEXT | Agent quality, modular platform (tool SPI, agent.yaml, profiles), protocol stack (MCP, ACP, A2A), knowledge activation |
+| **Wave 3** | 12+ | future | Streaming, multi-model, observability dashboard, polish |
 
 ### Protocol Stack Roadmaps
 
@@ -22,12 +22,13 @@ Each major protocol integration has its own detailed roadmap to keep documents m
 | Roadmap | Stage | Status | Description |
 |---------|-------|--------|-------------|
 | [`roadmap-boot.md`](roadmap-boot.md) | 7.0 | **DONE** | `/boot-new`, `/starters`, `/boot-add`, `/boot-modify` — all 5 stages complete (2026-03-10) |
-| [`roadmap-skills.md`](roadmap-skills.md) | 7.5 | **IN PROGRESS** | Stages 1–3 DONE (SkillsTool, `/skills`, 23-skill catalog). Stage 4 (first-party skills) next. |
-| [`roadmap-mcp.md`](roadmap-mcp.md) | 8 | TODO | MCP client (lift from agent-client), Claude CLI-compatible config |
-| [`roadmap-acp.md`](roadmap-acp.md) | 8.5 | TODO | ACP agent mode (editors drive Loopy), stdio + WebSocket |
-| [`roadmap-a2a.md`](roadmap-a2a.md) | 10 | TODO | A2A multi-agent orchestration via TaskTool SPI |
+| [`roadmap-skills.md`](roadmap-skills.md) | 7.5 | **DONE (Stages 1–3)** | Stages 1–3 DONE (SkillsTool, `/skills`, 23-skill catalog). Stages 4–6 DEFERRED — SkillsJars handles packaging. |
+| — | 8 | **NEXT** | **Modular Foundation** — tool plugin SPI (DD-12), `agent.yaml` (DD-13), profile bundles (DD-16), headless runtime (DD-17) |
+| [`roadmap-mcp.md`](roadmap-mcp.md) | 9 | TODO | MCP client — `.mcp.json` standard format (DD-14), lazy startup |
+| [`roadmap-acp.md`](roadmap-acp.md) | 9.5 | TODO | ACP agent mode (DD-19) — editors drive Loopy via stdio/WebSocket, ~3-6h |
+| [`roadmap-a2a.md`](roadmap-a2a.md) | 10 | TODO | A2A client auto-config (DD-15) — declarative YAML, contribute upstream to spring-ai-a2a |
 
-**Order rationale**: Boot before Skills-deep because `/boot-new` is self-contained (graph + templates), Agent Starters GTM requires `/starters` and `/boot-add` to be tangible, and `/boot-add`'s code generation is the primary proof point for the knowledge-directed execution thesis. Skills before MCP because: zero infrastructure, already a dependency, directly validates the thesis. MCP before ACP because: universal extensibility standard, unlocks ecosystem. ACP before A2A because: editor integration is higher-value than multi-agent (which requires other agents to exist).
+**Order rationale**: Modular Foundation first — tool plugin SPI (DD-12), `agent.yaml` (DD-13), and profile bundles (DD-16) are prerequisites for the declarative config story in MCP, ACP, and A2A. Without them, each protocol requires bespoke wiring. Skills Stages 4–6 deferred: SkillsJars project already handles skill packaging and classpath delivery; no Loopy-specific first-party starters needed now. MCP next: universal extensibility standard, zero user coding, `.mcp.json` already compatible with Claude Code/Cursor ecosystem. ACP alongside or after MCP: lightweight (~25 lines), stdio/subprocess maps to Loopy's CLI model, enables IDE editor integration (Zed, JetBrains, VS Code). A2A after ACP: multi-agent orchestration; Loopy contributes the missing client auto-config upstream.
 
 **Research**: `plans/inbox/extensibility-plugin-vs-mcp.md` — full protocol stack analysis, CLI comparison, design sources.
 
@@ -459,27 +460,55 @@ All four fixes are pure wiring changes to `MiniAgent.java`. No new abstractions 
 >
 > **Core insight**: Add dependency → agent becomes smarter. Same mental model as Spring Boot starters. Same classpath discovery (`META-INF/agent-skills/`). Same distribution (Maven Central). Two paths: `<dependency>` for Spring AI apps, `/skills add` for Loopy CLI. Loopy is the reference consumer; any Spring AI app can use Agent Starters.
 >
-> **Status**: Stages 1-2 DONE (SkillsTool wired, `/skills` command). Stage 3 IN PROGRESS (catalog, search/add/remove done; dual-path display + expansion remaining). Stages 4-5 planned (first-party starters, upstream contribution).
+> **Status**: Stages 1–3 DONE (SkillsTool wired, `/skills` command, 23-skill curated catalog with search/add/remove). **Stages 4–6 DEFERRED** — the SkillsJars project (`com.skillsjars`) already handles first-party skill packaging and classpath delivery. No Loopy-specific first-party starters needed now. Revisit once the modular platform (Stage 8) is complete.
 
 ---
 
-## Stage 8: MCP Client
+## Stage 8: Modular Foundation
+
+> **Prerequisite for all protocol integrations.** Implements the design decisions in DESIGN.md DD-12, DD-13, DD-16, DD-17 that enable tool plugin SPI, declarative `agent.yaml`, profile bundles, and headless runtime.
+
+### Why this stage comes first
+
+Without modular tool discovery, every new protocol (MCP, ACP, A2A) requires manual wiring in `MiniAgent.java`. With tool plugin SPI, adding a protocol means adding a JAR — zero code changes to the runtime. `agent.yaml` gives each protocol a consistent declarative entry point. Headless runtime makes Loopy composable (CI, Docker, A2A server, ACP subprocess) without dragging in TUI code.
+
+### Work items (detailed steps TBD when this stage begins)
+
+- [ ] **Tool plugin SPI** (DD-12): Each tool group provides an `AutoConfiguration` contributing `ToolCallback` beans. MiniAgent collects all `ToolCallback` beans from context.
+- [ ] **`agent.yaml` loading** (DD-13): `AgentYamlLoader` reads `./agent.yaml` → `~/.config/loopy/agent.yaml` → built-in defaults, after Spring context boots.
+- [ ] **Profile filtering** (DD-16): `ToolProfileFilter` at MiniAgent construction — CSV `tools.profiles` in `agent.yaml` → filter full `ToolCallback` bean set.
+- [ ] **Headless runtime** (DD-17): `loopy-runtime` module split from `loopy-cli`. TUI is a `loopy-cli` concern. Runtime runs headless in CI/Docker/ACP/A2A.
+- [ ] **SPI-first validation**: Prove design with current tools (bash, file, boot) as packages before extracting Maven modules.
+- [ ] Write unit tests: profile filter selects correct beans; agent.yaml parsed; default profile applies when no yaml present.
+- [ ] VERIFY: `./mvnw test`
+
+### Exit criteria
+
+- [ ] All existing tools discoverable via auto-configuration
+- [ ] `agent.yaml` loaded; active profiles filter MiniAgent's tool set
+- [ ] Headless runtime functional (print mode with no TUI dependency)
+- [ ] Tests pass: `./mvnw test`
+- [ ] COMMIT
+
+---
+
+## Stage 9: MCP Client
 
 > See [`plans/roadmap-mcp.md`](roadmap-mcp.md) for detailed steps.
 >
-> Portable MCP server definitions (lift from agent-client), Claude CLI-compatible config, Spring AI MCP client tool registration. Universal extensibility standard.
+> `.mcp.json` standard format (DD-14), lazy MCP server startup, tools registered as `ToolCallback` peers. Compatible with Claude Code / Cursor `.mcp.json` files out of the box.
 
 ---
 
-## Stage 8.5: ACP Agent Mode
+## Stage 9.5: ACP Agent Mode
 
 > See [`plans/roadmap-acp.md`](roadmap-acp.md) for detailed steps.
 >
-> Loopy as ACP agent — editors (Zed, JetBrains, VS Code) can drive Loopy. Stdio + WebSocket transports.
+> Loopy as ACP agent (DD-19) — editors (Zed, JetBrains, VS Code) drive Loopy via stdio or WebSocket. Annotation-based (`@AcpAgent`, `@Prompt`), ~3-6 hours estimated. `--acp` flag activates ACP listener instead of TUI.
 
 ---
 
-## Stage 9: Knowledge Activation + KB Bootstrapping (future)
+## Stage 11: Knowledge Activation + KB Bootstrapping (future)
 
 > **Rationale**: Two complementary features: (1) passive knowledge activation triggered by file access patterns — the harness monitors which files the agent reads and automatically injects matching knowledge, zero agent turns consumed; (2) starter KB bootstrapping via reference harvest in `/forge-agent` (deferred from Stage 4.3).
 >
@@ -500,7 +529,7 @@ All four fixes are pure wiring changes to `MiniAgent.java`. No new abstractions 
 
 > See [`plans/roadmap-a2a.md`](roadmap-a2a.md) for detailed steps.
 >
-> A2A client via TaskTool SPI, optional A2A server mode.
+> Declarative A2A client (DD-15) — `agent.yaml` `a2a.client.agents` block, `A2AClientAutoConfiguration`, remote agents as `ToolCallback` peers. Contribute `spring-ai-a2a-client-autoconfigure` upstream to `spring-ai-community/spring-ai-a2a`. Optional A2A server mode.
 
 ---
 
@@ -604,3 +633,4 @@ Every step's exit criteria must include:
 | 2026-03-12 | Add Step 7.0B: Subagent Infrastructure Completion — four gaps vs blog post: TaskOutputTool unregistered, custom agents not scanned, multi-model routing broken, skills not propagated. | Blog post gap analysis |
 | 2026-03-12 | Mark Step 7.0 DONE: system prompt rewritten with convention enforcement, git discipline, batched tool calls, output style, safety/security. All 6 prompt-only areas from research doc addressed. | Step 7.0 complete |
 | 2026-03-12 | Mark Steps 7.0A, 7.0B, 7.1, 7.4, 7.5, 7.6, 7.8 DONE. ListDirectory, subagent infra (TaskOutputTool, custom agents, multi-model routing, skills propagation), AGENTS.md injection, tool error tests, grace turn, stuck detection, session persistence. | Roadmap sync |
+| 2026-03-13 | Add Stage 8 (Modular Foundation — DD-12/13/16/17). Renumber MCP→9, ACP→9.5, Knowledge Activation→11. Move A2A from Wave 3 to Wave 2. Mark Skills Stages 4–6 DEFERRED (SkillsJars handles packaging). Update order rationale. Wave summary updated. | Design review: modular platform |

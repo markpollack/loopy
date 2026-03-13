@@ -270,7 +270,7 @@ META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 
 `MiniAgent` collects `Map<String, ToolCallback>` from the application context — any bean of type `ToolCallback` is automatically included. No registration code required when adding a new tool module.
 
-**Profile activation** (see DD-16): a profile gates which auto-configurations are active via `@ConditionalOnProperty`. Profiles are declared in `agent.yaml` or `application.yml`.
+**Profile filtering** (see DD-16): all tool `ToolCallback` beans are registered by auto-configuration unconditionally. Profile filtering happens at MiniAgent construction time — only beans matching the active profiles are passed to the agent. This avoids pre-boot complexity; `agent.yaml` is loaded after the Spring context starts.
 
 **Rationale**: This is exactly how Spring Boot starters work. Add dependency → beans appear → agent gains capability. Zero code for the user. Works with SkillsJars (classpath skills), MCP tool callbacks, and A2A remote-agent tools by the same mechanism.
 
@@ -423,13 +423,22 @@ Client client = Client.builder(card)
 | `headless` | same as `dev` minus ask-user-question | for CI/CD batch agents |
 | `enterprise` | file-system, grep, glob only — no bash, no shell | for secure environments |
 
-**Activation**: `@ConditionalOnProperty` in each tool's `AutoConfiguration`:
-```java
-@ConditionalOnProperty(prefix = "loopy.tools.profiles", name = "boot", havingValue = "true")
-class LoopyBootToolsAutoConfiguration { ... }
+**Activation**: `agent.yaml` is read after the Spring context boots. Active profiles are parsed, then MiniAgent filters the full set of `ToolCallback` beans from the context at construction time — no `@ConditionalOnProperty`, no pre-boot property setting needed.
+
+```yaml
+# agent.yaml — declares which profiles are active
+tools:
+  profiles:
+    - dev
+    - boot
 ```
 
-Profile list in `agent.yaml` sets `loopy.tools.profiles.dev=true`, `loopy.tools.profiles.boot=true`, etc. before context boots.
+```java
+// MiniAgent construction — runtime filter (not auto-config condition):
+List<ToolCallback> activeTools = allToolCallbacks.stream()
+    .filter(tool -> activeProfiles.stream().anyMatch(p -> tool.profileTag().equals(p)))
+    .toList();
+```
 
 **Loopy CLI default** (no `agent.yaml`): `dev` + `boot` profiles active. Both are baked into Loopy's identity and need no explicit declaration for existing users.
 
@@ -462,11 +471,30 @@ The split is a module boundary in `pom.xml`, not a different repository. `loopy-
 
 **Prerequisite**: DD-12 (tool auto-config), DD-13 (agent.yaml schema), DD-15 (A2A client auto-config).
 
+### DD-19: ACP Integration — Loopy as an Editor-Driven Agent
+
+**Decision**: Integrate ACP (Agent Client Protocol) so editors (Zed, JetBrains, VS Code) can drive Loopy interactively. ACP is the right transport for Loopy's CLI/subprocess model — editors spawn Loopy as a subprocess over stdio, or connect over WebSocket. The integration is annotation-based with no Spring dependency, estimated ~3-6 hours.
+
+**Why ACP over A2A for editor integration**: A2A uses HTTP/JSON-RPC (web-tier model) — requires a running HTTP server. ACP uses stdio (subprocess) or WebSocket — the editor spawns Loopy as a process. This maps directly to how Claude Code, Cursor, and Zed already work. ACP gives the "bigger story": users can chat with Loopy from their IDE without leaving the editor.
+
+**ACP SDK characteristics** (from investigation of `~/acp/acp-java/`):
+- Pure Java 17+, no Spring dependency
+- Annotation-based: `@AcpAgent`, `@Initialize`, `@NewSession`, `@Prompt` — ~25 lines for a basic agent
+- Transports: `stdio` (subprocess, default) or WebSocket (Jetty)
+- Modules: `acp-core`, `acp-annotations`, `acp-agent-support`, `acp-websocket-jetty`, `acp-test`
+- No Spring Boot autoconfigure exists — not needed for Loopy
+
+**Integration approach**: Wrap MiniAgent in an `@AcpAgent` class. `@Prompt` handler feeds the message to `MiniAgent.run()` and streams output back. Wired alongside the existing TUI/REPL/print modes in `LoopyCommand`. When `--acp` flag is present, start the ACP listener instead of TUI.
+
+**Interaction with DD-17 (Headless Runtime)**: ACP mode is another headless deployment shape — same runtime, different transport. No TUI, no REPL, just the MiniAgent loop responding to ACP messages.
+
+**Ordering**: Implement after MCP (DD-14) and Modular Foundation (DD-12/16). ACP and A2A (DD-15) can proceed in parallel once the tool plugin SPI is in place — they are both protocol adapters over the same runtime.
+
 ---
 
 ## `agent.yaml` Full Reference
 
-See DD-13 for schema. Loading order:
+See DD-13 for schema. All files are loaded **after the Spring context boots** — no pre-boot complexity. Loading order (later entries take lower precedence):
 1. `./agent.yaml` (project-local, highest precedence)
 2. `~/.config/loopy/agent.yaml` (user-global)
 3. Loopy built-in defaults (`dev` + `boot` profiles active, no MCP, no A2A)
@@ -556,3 +584,4 @@ Deferred until DD-12 (tool auto-config), DD-13 (agent.yaml), and DD-15 (A2A clie
 | 2026-03-02 | Add DD-5 (async thunks), DD-6 (TextInput), async message flow | Brief app deep-dive |
 | 2026-03-08 | Major update — add skills architecture (DD-8), Agent Starters (DD-9), SAE (DD-10), multi-provider (DD-7), updated package structure, component diagram | Strategic clarity before Stage 4 |
 | 2026-03-13 | Modular platform design — DD-1 revised (multi-module), DD-12 (tool plugin SPI), DD-13 (agent.yaml schema), DD-14 (MCP .mcp.json), DD-15 (A2A client auto-config + upstream contribution), DD-16 (profile bundles), DD-17 (headless runtime), DD-18 (forge-agent evolution, deferred). | Loopy as agent forge platform |
+| 2026-03-13 | Resolve open design questions: DD-12/16 corrected (runtime filter at MiniAgent construction, not @ConditionalOnProperty; agent.yaml loads after Spring context boots). Add DD-19: ACP integration (lightweight, annotation-based, stdio/WebSocket, ~3-6h, IDE editor transport). | Design question resolution |
