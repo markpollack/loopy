@@ -158,56 +158,9 @@ Management (/skills command):
 
 **Curated catalog**: `skills-catalog.json` baked into JAR. 23 skills from 8 publishers. `SkillsCatalog` loads from classpath, search by name/tag/description/author (case-insensitive substring).
 
-### Agent Starters Architecture (Stage 4 — planned)
+### Agent Starters Architecture (DEFERRED — needs more thought)
 
-Agent Starters extend skills for the Spring community. They add deterministic project analysis (SAE) and auto-configuration on top of the universal skill layer.
-
-#### Project-Aware Suggestion (the key UX)
-
-Loopy scans the project on startup and suggests relevant starters. The developer sees the brand at the moment of value:
-
-```
-Detected: Spring Boot 3.4 / Spring Data JPA / PostgreSQL
-
-Recommended Agent Starter:
-  spring-ai-starter-data-jpa — JPA testing, entity design, query optimization
-
-Load it? (y/n)
-```
-
-Starters are **not pre-loaded** — they're available but loaded on demand. This is like IntelliJ suggesting "Spring support detected, enable Spring facet?" The developer opts in, sees the term "Agent Starter", and associates it with the quality difference.
-
-Explicit loading also works:
-
-```
-/starters search jpa
-/starters load spring-ai-starter-data-jpa
-```
-
-#### Starter Pipeline (what runs after loading)
-
-```
-Agent Starter Pipeline:
-┌─────────────────────┐     ┌─────────────────────┐     ┌──────────────────┐
-│  ProjectAnalyzer    │     │  PROJECT-ANALYSIS.md │     │  Agent + Skill   │
-│  (deterministic,    │────▶│  (entities, repos,   │────▶│  reads analysis  │
-│   zero LLM cost)    │     │   imports, tests)    │     │  first, then acts│
-└─────────────────────┘     └─────────────────────┘     └──────────────────┘
-       ↑ no LLM tokens              ↑ grounding                ↑ skill knowledge
-```
-
-**What ProjectAnalyzer scans** (~455 lines, pure Java, zero external deps):
-- POM analysis: Spring Boot version, Java version, test-relevant dependencies
-- Source inventory: every `.java` file with type, annotations, extends/implements
-- Component classification: Controllers, Services, Repositories, JPA Entities, Config
-- Existing tests: what's already tested (don't duplicate)
-- Recommended test strategy with **exact import blocks** (the v2 breakthrough)
-
-**Integration point**: MiniAgent pre-step. When a starter is loaded, ProjectAnalyzer runs and injects the report as system context. Agent skips exploration, goes straight to productive work.
-
-**Measured results** (code-coverage-experiment, 11 variants, 6 projects):
-- Without SAE: 0.62 quality at $5.76
-- With SAE: 0.93 quality at $0.92
+> The Agent Starters concept (skills + SAE + auto-configuration for Spring projects) is documented in `plans/roadmap-skills.md` Stages 4–5 but is **not currently planned for implementation**. Experimental evidence suggests skills provide limited improvement for software development tasks (consistent with the SkillsBench research paper). The SAE (project analysis) component may still have standalone value independent of the skills layer. Revisit once the modular platform (DD-12–DD-17) is complete and there is a clearer picture of where deterministic project context injection fits.
 
 ### Multi-Provider Architecture
 
@@ -284,6 +237,14 @@ public record CommandContext(
 
 ## Design Decisions
 
+> **Active** — decisions under current development or discussion.
+> **Completed** — implemented and stable, kept for historical context.
+> **Deferred** — acknowledged but not currently planned.
+
+---
+
+## Active Design Decisions
+
 ### DD-1: Single Repo, Multiple Maven Modules As Needed
 
 **Decision**: Single repository. Maven modules introduced as separation becomes load-bearing — not speculatively. ArchUnit rules updated per module boundary added. No new repos until a module has an independent consumer.
@@ -294,76 +255,6 @@ public record CommandContext(
 - `loopy-tools-core` — bash, file, grep, glob, list-directory (wrapping spring-ai-agent-utils)
 - `loopy-tools-boot` — Spring Boot scaffolding tools (`/boot-new`, `/boot-add`, `/boot-modify`, `/starters`)
 - `loopy-cli` — TUI, REPL, slash command registry, all `/commands` (depends on runtime + tools)
-
-### DD-2: Slash Commands Intercepted Before Agent
-
-**Decision**: Intercept in `ChatScreen.submitInput()` before calling MiniAgent. Slash commands are deterministic — no LLM needed. Intercepting early avoids wasted API calls and is 100% reliable.
-
-### DD-3: Copy Forge Code (Not Depend on Forge JAR)
-
-**Decision**: Copy 3 forge classes into `io.github.markpollack.loopy.forge`. Avoids transitive agent-client/claude-agent dependencies.
-
-### DD-4: Embed MiniAgent (Copy, Not Depend)
-
-**Decision**: Copy ~13 classes from agent-harness into `io.github.markpollack.loopy.agent`. Loopy owns its agent — the first "field agent" graduated from the nursery.
-
-### DD-5: Async LLM via Command Thunks
-
-**Decision**: Use tui4j's `Command` (`Supplier<Message>`) as background thread thunks. Thread-safe because Elm Architecture guarantees single-threaded `update()` calls.
-
-### DD-6: TextInput for v1
-
-**Decision**: Keep `TextInput` (single-line) for v1. Consider `Textarea` with `Ctrl+J` for newlines later.
-
-### DD-7: Multi-Provider via Spring Auto-Config
-
-**Decision**: All three provider starters on classpath. `--provider` flag sets `spring.ai.model.chat` system property before context boots, activating exactly one `ChatModel` bean. No conditional compilation, no profiles — one fat JAR serves all providers.
-
-### DD-8: Skills as First-Class Citizens
-
-**Decision**: Skills are independent of Spring and work in any agentic CLI. SkillsTool (from spring-ai-agent-utils) handles loading via progressive disclosure. Three discovery sources: project `.claude/skills/`, global `~/.claude/skills/`, classpath `META-INF/skills/`. Curated catalog baked into JAR for discovery.
-
-**Rationale**: Skills follow the agentskills.io open spec (40+ tools). Making them first-class and Spring-independent means the same SKILL.md works in Loopy, Claude Code, Cursor, and any other tool that supports skills.
-
-### DD-9: Agent Starters Build on Skills (Not Replace Them)
-
-**Decision**: Agent Starters are the Spring-specific value-add ON TOP of skills. A starter contains a skill (backward compatible with any agentic CLI) plus SAE, auto-configuration, and custom tools (the upgrade for Loopy/Spring AI).
-
-**Rationale**: Skills are universal — don't break that. Agent Starters serve the Spring community specifically, using the naming convention Spring developers already know (`spring-ai-starter-{domain}` mirrors `spring-boot-starter-{domain}`).
-
-### DD-10: SAE as MiniAgent Pre-Step (Not Tool)
-
-**Decision**: ProjectAnalyzer runs as a deterministic pre-step BEFORE the agent loop starts, injecting the report as system context. Not registered as a tool the agent calls on-demand.
-
-**Rationale**: The SAE data (project structure, imports, component classification) is needed from the first LLM turn. Running it as a pre-step means the agent never wastes tokens on exploration. Measured: 81% cost reduction, 15% quality increase.
-
-**Alternative considered**: Register as a tool the agent can call — rejected because the agent would waste a turn calling it, and might not call it at all.
-
-### DD-11: Project-Aware Starter Suggestion (Not Pre-Loaded)
-
-**Decision**: Starters are NOT baked into Loopy and pre-loaded. Instead, Loopy scans the project on startup (lightweight — just pom.xml/build.gradle), detects what frameworks are in use, and suggests relevant starters. Developer opts in explicitly.
-
-**Rationale**: Three reasons:
-1. **Brand visibility** — developer sees "Agent Starter" at the moment of value. The marketing works because they experience the quality difference right after seeing the term.
-2. **Opt-in, not magic** — developers trust tools they understand. "Load JPA starter?" is transparent. Silently injecting knowledge feels like hidden behavior.
-3. **Resource efficiency** — only load what's relevant. A project using WebFlux doesn't need the JPA starter's ProjectAnalyzer scanning for entities.
-
-**Detection heuristics**: Read pom.xml/build.gradle for dependency coordinates. `spring-boot-starter-data-jpa` present → suggest `spring-ai-starter-data-jpa`. `spring-boot-starter-security` → suggest `spring-ai-starter-security`. Maps directly from Boot starters to Agent Starters.
-
-## Testing Strategy
-
-- **Unit tests**: SlashCommand dispatch, ChatEntry, ExperimentBrief parsing, SkillsCatalog search, SkillsCommand subcommands
-- **Architecture tests**: ArchUnit rules for layer isolation (agent ✗→ tui, command ✗→ agent, etc.)
-- **Integration tests**: Multi-provider ChatModel creation, skills auto-discovery from classpath
-- **Coverage**: JaCoCo (99 tests as of Stage 3 completion)
-
-## Error Handling
-
-- Slash commands catch all exceptions internally and return error strings
-- MiniAgent errors handled by MiniAgent and returned in `AgentResult.output()`
-- TUI-level errors terminate with non-zero exit code
-- Missing API key caught at startup with clear error message
-- Skills graceful degradation: no skills = no SkillsTool registered, no error
 
 ### DD-12: Tool Plugin SPI via Spring Auto-Configuration
 
@@ -579,6 +470,79 @@ See DD-13 for schema. Loading order:
 1. `./agent.yaml` (project-local, highest precedence)
 2. `~/.config/loopy/agent.yaml` (user-global)
 3. Loopy built-in defaults (`dev` + `boot` profiles active, no MCP, no A2A)
+
+---
+
+## Completed Design Decisions
+
+Implemented and stable. Kept for historical context.
+
+### DD-2: Slash Commands Intercepted Before Agent
+
+**Decision**: Intercept in `ChatScreen.submitInput()` before calling MiniAgent. Slash commands are deterministic — no LLM needed. Intercepting early avoids wasted API calls and is 100% reliable.
+
+### DD-3: Copy Forge Code (Not Depend on Forge JAR)
+
+**Decision**: Copy 3 forge classes into `io.github.markpollack.loopy.forge`. Avoids transitive agent-client/claude-agent dependencies.
+
+### DD-4: Embed MiniAgent (Copy, Not Depend)
+
+**Decision**: Copy ~13 classes from agent-harness into `io.github.markpollack.loopy.agent`. Loopy owns its agent — the first "field agent" graduated from the nursery.
+
+### DD-5: Async LLM via Command Thunks
+
+**Decision**: Use tui4j's `Command` (`Supplier<Message>`) as background thread thunks. Thread-safe because Elm Architecture guarantees single-threaded `update()` calls.
+
+### DD-6: TextInput for v1
+
+**Decision**: Keep `TextInput` (single-line) for v1. Consider `Textarea` with `Ctrl+J` for newlines later.
+
+### DD-7: Multi-Provider via Spring Auto-Config
+
+**Decision**: All three provider starters on classpath. `--provider` flag sets `spring.ai.model.chat` system property before context boots, activating exactly one `ChatModel` bean. No conditional compilation, no profiles — one fat JAR serves all providers.
+
+### DD-8: Skills as First-Class Citizens
+
+**Decision**: Skills are independent of Spring and work in any agentic CLI. SkillsTool (from spring-ai-agent-utils) handles loading via progressive disclosure. Three discovery sources: project `.claude/skills/`, global `~/.claude/skills/`, classpath `META-INF/skills/`. Curated catalog baked into JAR for discovery.
+
+---
+
+## Deferred Design Decisions
+
+Acknowledged but not currently planned. Revisit when prerequisites are met.
+
+### DD-9: Agent Starters — Skills + SAE for Spring Projects
+
+Experimental evidence (SkillsBench research paper) suggests skills provide limited improvement for software development tasks. The concept needs more thought before implementation. `ProjectAnalyzer` (SAE) may have standalone value independent of the skills layer — deferred until the modular platform is complete.
+
+### DD-10: SAE as MiniAgent Pre-Step
+
+Depends on DD-9 direction. Deferred.
+
+### DD-11: Project-Aware Starter Suggestion
+
+Depends on DD-9 direction. Deferred.
+
+### DD-18: `/forge-agent` Evolution — Declarative Agent Artifacts
+
+Deferred until DD-12 (tool auto-config), DD-13 (agent.yaml), and DD-15 (A2A client auto-config) are complete. At that point `/forge-agent` can produce a fully configured agent — `agent.yaml` + `pom.xml` + AGENTS.md — with no Java authoring needed for common cases.
+
+---
+
+## Testing Strategy
+
+- **Unit tests**: SlashCommand dispatch, ChatEntry, ExperimentBrief parsing, SkillsCatalog search, SkillsCommand subcommands
+- **Architecture tests**: ArchUnit rules for layer isolation (agent ✗→ tui, command ✗→ agent, etc.)
+- **Integration tests**: Multi-provider ChatModel creation, skills auto-discovery from classpath
+- **Coverage**: JaCoCo (99 tests as of Stage 3 completion)
+
+## Error Handling
+
+- Slash commands catch all exceptions internally and return error strings
+- MiniAgent errors handled by MiniAgent and returned in `AgentResult.output()`
+- TUI-level errors terminate with non-zero exit code
+- Missing API key caught at startup with clear error message
+- Skills graceful degradation: no skills = no SkillsTool registered, no error
 
 ---
 
