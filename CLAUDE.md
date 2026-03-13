@@ -81,6 +81,7 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 | `/boot-add` | Bootstrap domain capabilities (Agent Starter) into existing project |
 | `/boot-modify` | Apply structural modifications (set java version, clean pom, add native support, etc.) |
 | `/forge-agent` | Bootstrap an agent experiment project from a brief |
+| `/session` | Save, list, or load sessions: `save [name]` / `list` / `load <id>`. Auto-saves on `/quit`. Sessions in `~/.config/loopy/sessions/`. |
 
 ### Key Design Decisions
 

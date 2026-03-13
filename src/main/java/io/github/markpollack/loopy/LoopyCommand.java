@@ -28,6 +28,8 @@ import io.github.markpollack.loopy.command.QuitCommand;
 import io.github.markpollack.loopy.command.SkillsCommand;
 import io.github.markpollack.loopy.command.SlashCommandRegistry;
 import io.github.markpollack.loopy.forge.ForgeAgentCommand;
+import io.github.markpollack.loopy.session.SessionCommand;
+import io.github.markpollack.loopy.session.SessionStore;
 import io.github.markpollack.loopy.tui.ChatScreen;
 import io.github.markpollack.loopy.tui.LogoScreen;
 
@@ -127,6 +129,15 @@ public class LoopyCommand implements Callable<Integer> {
 		}, finalAgent != null ? finalAgent::setModelOverride : model -> {
 		}, finalAgent != null ? prompt -> finalAgent.run(prompt).output() : prompt -> "Agent not available");
 
+		// Register session command if agent has session memory
+		var sessionStore = new SessionStore();
+		if (finalAgent != null && finalAgent.hasSessionMemory()) {
+			String sessionProvider = activeProvider;
+			String sessionModel = this.model != null ? this.model : defaultModelFor(activeProvider);
+			registry.register(new SessionCommand(finalAgent.getSessionMemory(), finalAgent.getConversationId(),
+					sessionStore, sessionModel, sessionProvider));
+		}
+
 		java.util.function.Supplier<Model> chatScreenFactory;
 		if (finalAgent != null) {
 			chatScreenFactory = () -> new ChatScreen(text -> {
@@ -150,10 +161,35 @@ public class LoopyCommand implements Callable<Integer> {
 			// Ignore terminal teardown exceptions on exit (e.g. JLine cleanup)
 		}
 
+		// Auto-save session on exit if there are messages
+		if (finalAgent != null && finalAgent.hasSessionMemory()) {
+			autoSave(finalAgent, sessionStore, activeProvider);
+		}
+
 		if (journalRun != null) {
 			journalRun.close();
 		}
 		return 0;
+	}
+
+	private void autoSave(MiniAgent agent, SessionStore store, String provider) {
+		try {
+			var messages = agent.getSessionMemory().get(agent.getConversationId());
+			if (messages.isEmpty()) {
+				return;
+			}
+			String workDir = (this.directory != null ? this.directory : Path.of(System.getProperty("user.dir")))
+				.toAbsolutePath()
+				.toString();
+			String sessionModel = this.model != null ? this.model : defaultModelFor(provider);
+			var metadata = new SessionStore.SessionMetadata(workDir, sessionModel, provider);
+			String id = store.save(messages, metadata, null);
+			System.err.println("Session auto-saved: " + id);
+		}
+		catch (Exception ex) {
+			// Auto-save failure should not disrupt the user
+			System.err.println("Session auto-save failed: " + ex.getMessage());
+		}
 	}
 
 	private Integer runPrintMode() {

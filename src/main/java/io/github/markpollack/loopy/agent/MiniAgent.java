@@ -523,6 +523,20 @@ public class MiniAgent {
 	}
 
 	/**
+	 * Returns the session memory, or null if not configured.
+	 */
+	public org.springframework.ai.chat.memory.@org.jspecify.annotations.Nullable ChatMemory getSessionMemory() {
+		return sessionMemory;
+	}
+
+	/**
+	 * Returns the conversation ID used with session memory.
+	 */
+	public String getConversationId() {
+		return conversationId;
+	}
+
+	/**
 	 * Check if interactive mode is enabled.
 	 */
 	public boolean isInteractive() {
