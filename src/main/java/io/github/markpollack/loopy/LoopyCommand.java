@@ -12,13 +12,15 @@ import io.github.markpollack.loopy.agent.DebugLoopListener;
 import io.github.markpollack.loopy.agent.DebugToolCallListener;
 import io.github.markpollack.loopy.agent.MiniAgent;
 import io.github.markpollack.loopy.agent.MiniAgentConfig;
+import io.github.markpollack.loopy.agent.config.AgentYaml;
+import io.github.markpollack.loopy.agent.config.AgentYamlLoader;
 import io.github.markpollack.loopy.boot.BootAddCommand;
 import io.github.markpollack.loopy.boot.BootModifyCommand;
 import io.github.markpollack.loopy.boot.BootNewCommand;
-import io.github.markpollack.loopy.boot.BootModifyTool;
-import io.github.markpollack.loopy.boot.BootNewTool;
 import io.github.markpollack.loopy.boot.BootSetupCommand;
 import io.github.markpollack.loopy.boot.StartersCommand;
+import io.github.markpollack.loopy.tools.LoopyToolsFactory;
+import io.github.markpollack.loopy.tools.ToolFactoryContext;
 import io.github.markpollack.loopy.command.BtwCommand;
 import io.github.markpollack.loopy.command.ClearCommand;
 import io.github.markpollack.loopy.command.CommandContext;
@@ -349,7 +351,12 @@ public class LoopyCommand implements Callable<Integer> {
 	private MiniAgent createAgent(ChatModel chatModel, boolean withSession, boolean consoleProgress,
 			@Nullable Run journalRun) {
 		Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
-		int turns = this.maxTurns != null ? this.maxTurns : 20;
+
+		// Load agent.yaml — determines active profiles (DD-13)
+		AgentYaml agentYaml = AgentYamlLoader.load(workDir);
+
+		int turns = this.maxTurns != null ? this.maxTurns
+				: (agentYaml.maxTurnsOverride() != null ? agentYaml.maxTurnsOverride() : 20);
 
 		var config = MiniAgentConfig.builder()
 			.workingDirectory(workDir)
@@ -363,10 +370,11 @@ public class LoopyCommand implements Callable<Integer> {
 			config = config.apply(b -> b.systemPrompt(injected));
 		}
 
-		var builder = MiniAgent.builder()
-			.config(config)
-			.model(chatModel)
-			.additionalTools(new BootNewTool(workDir, chatModel), new BootModifyTool(workDir));
+		// Build profile-filtered tool list (DD-12, DD-16)
+		var toolCtx = new ToolFactoryContext(workDir, chatModel, Duration.ofSeconds(120), withSession, null);
+		var profileTools = LoopyToolsFactory.toolsForProfiles(agentYaml.activeProfiles(), toolCtx);
+
+		var builder = MiniAgent.builder().config(config).model(chatModel).profileToolCallbacks(profileTools);
 
 		// Apply model override from -m flag (also used for cost estimation)
 		if (this.model != null) {

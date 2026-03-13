@@ -100,35 +100,47 @@ public class MiniAgent {
 		this.interactive = builder.interactive;
 		this.conversationId = builder.conversationId != null ? builder.conversationId : "default";
 
-		// Create tools - mix of spring-ai-agent-utils and harness-tools
-		// Use harness-tools BashTool instead of ShellTools to avoid overly verbose tool
-		// descriptions
-		// Pass workingDirectory to tools that support it so they operate within the
-		// sandbox context
+		// --- Tool assembly (DD-12, DD-16) ---
+		// When profileToolCallbacks is provided (from LoopyToolsFactory), MiniAgent acts
+		// as a pure tool consumer — no internal construction of dev/boot profile tools.
+		// When not provided (legacy / programmatic API), MiniAgent constructs tools
+		// itself.
 
-		// Tools with @Tool annotated methods - convert via ToolCallbacks.from()
+		// Infrastructure tools always managed by MiniAgent (not profile-dependent):
+		// SubmitTool, TaskTool/TaskOutputTool, SkillsTool
+		// Domain tools (profile-dependent):
+		// When profileToolCallbacks set: come from LoopyToolsFactory externally
+		// Otherwise: constructed here for backwards compatibility
+
 		List<Object> annotatedToolObjects = new ArrayList<>();
-		annotatedToolObjects.add(FileSystemTools.builder().build());
-		annotatedToolObjects.add(new BashTool(config.workingDirectory(), config.commandTimeout()));
-		annotatedToolObjects.add(GlobTool.builder().workingDirectory(config.workingDirectory()).build());
-		annotatedToolObjects.add(GrepTool.builder().workingDirectory(config.workingDirectory()).build());
-		annotatedToolObjects.add(ListDirectoryTool.builder().workingDirectory(config.workingDirectory()).build());
 		annotatedToolObjects.add(new SubmitTool());
-		annotatedToolObjects.add(TodoWriteTool.builder().build());
 
-		// Add AskUserQuestionTool if interactive mode and callback provided
-		if (interactive && builder.agentCallback != null) {
-			annotatedToolObjects.add(AskUserQuestionTool.builder()
-				.questionHandler(questions -> builder.agentCallback.onQuestion(questions))
-				.build());
-		}
+		if (builder.profileToolCallbacks.isEmpty()) {
+			// Legacy path: internal tool construction (backwards compat / programmatic
+			// API)
+			annotatedToolObjects.add(FileSystemTools.builder().build());
+			annotatedToolObjects.add(new BashTool(config.workingDirectory(), config.commandTimeout()));
+			annotatedToolObjects.add(GlobTool.builder().workingDirectory(config.workingDirectory()).build());
+			annotatedToolObjects.add(GrepTool.builder().workingDirectory(config.workingDirectory()).build());
+			annotatedToolObjects.add(ListDirectoryTool.builder().workingDirectory(config.workingDirectory()).build());
+			annotatedToolObjects.add(TodoWriteTool.builder().build());
 
-		// Add web search and fetch tools if BRAVE_API_KEY is available
-		String braveApiKey = System.getenv("BRAVE_API_KEY");
-		if (braveApiKey != null && !braveApiKey.isBlank()) {
-			annotatedToolObjects.add(BraveWebSearchTool.builder(braveApiKey).build());
-			var fetchClient = ChatClient.builder(builder.model).build();
-			annotatedToolObjects.add(SmartWebFetchTool.builder(fetchClient).build());
+			if (interactive && builder.agentCallback != null) {
+				annotatedToolObjects.add(AskUserQuestionTool.builder()
+					.questionHandler(questions -> builder.agentCallback.onQuestion(questions))
+					.build());
+			}
+
+			String braveApiKey = System.getenv("BRAVE_API_KEY");
+			if (braveApiKey != null && !braveApiKey.isBlank()) {
+				annotatedToolObjects.add(BraveWebSearchTool.builder(braveApiKey).build());
+				var fetchClient = ChatClient.builder(builder.model).build();
+				annotatedToolObjects.add(SmartWebFetchTool.builder(fetchClient).build());
+			}
+
+			// Inject additional @Tool-annotated objects (e.g., BootNewTool,
+			// BootModifyTool)
+			annotatedToolObjects.addAll(builder.additionalToolObjects);
 		}
 
 		// Tools that directly implement ToolCallback - add directly to callback list
@@ -252,15 +264,16 @@ public class MiniAgent {
 			}
 		}
 
-		// Inject additional @Tool-annotated objects registered via
-		// Builder.additionalTools()
-		annotatedToolObjects.addAll(builder.additionalToolObjects);
-
 		// Convert @Tool annotated objects to ToolCallbacks and merge with direct
 		// callbacks
 		var annotatedCallbacks = ToolCallbacks.from(annotatedToolObjects.toArray());
 		var allCallbacks = new ArrayList<>(Arrays.asList(annotatedCallbacks));
 		allCallbacks.addAll(directCallbacks);
+
+		// Add profile-sourced tools from LoopyToolsFactory (DD-12, DD-16)
+		if (!builder.profileToolCallbacks.isEmpty()) {
+			allCallbacks.addAll(builder.profileToolCallbacks);
+		}
 
 		// Filter out disabled tools by name
 		if (!builder.disabledTools.isEmpty()) {
@@ -633,6 +646,8 @@ public class MiniAgent {
 
 		private final List<Object> additionalToolObjects = new ArrayList<>();
 
+		private List<org.springframework.ai.tool.ToolCallback> profileToolCallbacks = List.of();
+
 		private Builder() {
 		}
 
@@ -767,9 +782,26 @@ public class MiniAgent {
 		 * Register additional {@code @Tool}-annotated objects with the agent. Use this to
 		 * inject domain-specific tools (e.g. boot scaffolding, CI generation) without
 		 * creating a dependency from the agent layer to those packages.
+		 * <p>
+		 * Only used when {@link #profileToolCallbacks} is not set. Prefer
+		 * {@link #profileToolCallbacks} for new code.
 		 */
 		public Builder additionalTools(Object... tools) {
 			this.additionalToolObjects.addAll(Arrays.asList(tools));
+			return this;
+		}
+
+		/**
+		 * Provide tool callbacks from profile-based tool discovery (DD-12, DD-16). When
+		 * set, MiniAgent skips internal tool construction and uses these callbacks
+		 * instead. Infrastructure tools (Submit, Task, Skills) are still added by
+		 * MiniAgent.
+		 * <p>
+		 * Use {@link io.github.markpollack.loopy.tools.LoopyToolsFactory} to build this
+		 * list from named profiles and a {@code ToolFactoryContext}.
+		 */
+		public Builder profileToolCallbacks(java.util.List<org.springframework.ai.tool.ToolCallback> callbacks) {
+			this.profileToolCallbacks = List.copyOf(callbacks);
 			return this;
 		}
 
