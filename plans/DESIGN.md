@@ -421,7 +421,7 @@ Client client = Client.builder(card)
 | `dev` | bash, file-system, grep, glob, list-directory, ask-user-question, todo-write, task/subagents, skills | YES |
 | `boot` | boot-new, boot-modify, boot-add, boot-setup, starters | YES (Loopy's identity) |
 | `headless` | same as `dev` minus ask-user-question | for CI/CD batch agents |
-| `enterprise` | file-system, grep, glob only — no bash, no shell | for secure environments |
+| `readonly` | file-system, grep, glob, list-directory only — no bash, no shell, no todo-write | for secure/restricted environments |
 
 **Activation**: `agent.yaml` is read after the Spring context boots. Active profiles are parsed, then MiniAgent filters the full set of `ToolCallback` beans from the context at construction time — no `@ConditionalOnProperty`, no pre-boot property setting needed.
 

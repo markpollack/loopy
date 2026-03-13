@@ -104,16 +104,16 @@ class AgentYamlLoaderTest {
 	}
 
 	@Test
-	void enterpriseProfileExcludesBoot(@TempDir Path dir) throws Exception {
+	void readonlyProfileExcludesBoot(@TempDir Path dir) throws Exception {
 		Files.writeString(dir.resolve("agent.yaml"), """
 				tools:
 				  profiles:
-				    - enterprise
+				    - readonly
 				""");
 
 		AgentYaml yaml = AgentYamlLoader.load(dir);
 
-		assertThat(yaml.activeProfiles()).containsExactly("enterprise");
+		assertThat(yaml.activeProfiles()).containsExactly("readonly");
 		assertThat(yaml.activeProfiles()).doesNotContainAnyElementsOf(List.of("dev", "boot"));
 	}
 

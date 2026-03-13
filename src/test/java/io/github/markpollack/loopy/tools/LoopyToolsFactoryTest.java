@@ -63,10 +63,10 @@ class LoopyToolsFactoryTest {
 	}
 
 	@Test
-	void enterpriseProfileExcludesBashAndShell(@TempDir Path dir) {
+	void readonlyProfileExcludesBashAndShell(@TempDir Path dir) {
 		var ctx = ToolFactoryContext.headless(dir, null, Duration.ofSeconds(30));
 
-		List<ToolCallback> tools = LoopyToolsFactory.toolsForProfiles(List.of("enterprise"), ctx);
+		List<ToolCallback> tools = LoopyToolsFactory.toolsForProfiles(List.of("readonly"), ctx);
 
 		var names = toolNames(tools);
 		// No shell execution

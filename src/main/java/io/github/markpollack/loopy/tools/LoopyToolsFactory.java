@@ -33,7 +33,7 @@ import java.util.List;
  * ask-user-question (when interactive), brave-search (when BRAVE_API_KEY set)</li>
  * <li>{@code boot} — Spring Boot scaffolding tools (boot-new, boot-modify)</li>
  * <li>{@code headless} — same as dev, minus ask-user-question (for CI/CD)</li>
- * <li>{@code enterprise} — read-only: file-system, grep, glob, list-directory only</li>
+ * <li>{@code readonly} — read-only: file-system, grep, glob, list-directory only</li>
  * </ul>
  * <p>
  * When Maven modules are extracted, each profile maps to its own
@@ -55,7 +55,7 @@ public class LoopyToolsFactory {
 		for (String profile : profiles) {
 			List<ToolCallback> bundle = bundleFor(profile, ctx);
 			if (bundle.isEmpty() && !isKnownProfile(profile)) {
-				log.warn("Unknown tool profile '{}' — skipping. Known profiles: dev, boot, headless, enterprise",
+				log.warn("Unknown tool profile '{}' — skipping. Known profiles: dev, boot, headless, readonly",
 						profile);
 			}
 			result.addAll(bundle);
@@ -65,7 +65,7 @@ public class LoopyToolsFactory {
 
 	private static boolean isKnownProfile(String profile) {
 		return switch (profile) {
-			case "dev", "boot", "headless", "enterprise" -> true;
+			case "dev", "boot", "headless", "readonly" -> true;
 			default -> false;
 		};
 	}
@@ -75,7 +75,7 @@ public class LoopyToolsFactory {
 			case "dev" -> devTools(ctx);
 			case "boot" -> bootTools(ctx);
 			case "headless" -> headlessTools(ctx);
-			case "enterprise" -> enterpriseTools(ctx);
+			case "readonly" -> readonlyTools(ctx);
 			default -> List.of();
 		};
 	}
@@ -142,10 +142,10 @@ public class LoopyToolsFactory {
 	}
 
 	/**
-	 * Enterprise profile: read-only access only. No bash, no file writes. For secure
+	 * Readonly profile: read-only access only. No bash, no file writes. For secure
 	 * production environments where shell execution is not permitted.
 	 */
-	private static List<ToolCallback> enterpriseTools(ToolFactoryContext ctx) {
+	private static List<ToolCallback> readonlyTools(ToolFactoryContext ctx) {
 		List<Object> annotated = new ArrayList<>();
 		annotated.add(FileSystemTools.builder().build());
 		annotated.add(GlobTool.builder().workingDirectory(ctx.workingDirectory()).build());
