@@ -210,24 +210,24 @@ See `plans/gap-inventory.md` for the full competitive gap analysis (20 gaps vs G
 All four fixes are pure wiring changes to `MiniAgent.java`. No new abstractions needed.
 
 **Work items**:
-- [ ] FIX `TaskOutputTool` not registered: share the `DefaultTaskRepository` instance between `TaskTool` and a new `TaskOutputTool` registration. Background task results become retrievable.
-- [ ] FIX custom agent loading: scan `.claude/agents/` in the working directory and `~/.claude/agents/` globally using `ClaudeSubagentReferences.fromRootDirectory()`. Add references to the `TaskTool.builder()` call. Skip gracefully if the directory doesn't exist.
-- [ ] FIX multi-model routing: register named `ChatClient.Builder` entries (`"haiku"`, `"sonnet"`, `"opus"`) in `ClaudeSubagentType.builder()` using per-request model override via `ChatOptions`. The same underlying `ChatModel` is used — no new API credentials needed.
-- [ ] FIX skills propagation to subagents: pass the same skills directories resolved for the main agent into `ClaudeSubagentType.builder().skillsDirectories()`.
-- [ ] UPDATE `docs/subagents.md` — custom agent loading section now accurate (`.claude/agents/` actually scanned), `TaskOutput` tool documented, multi-model routing note updated.
-- [ ] WRITE unit tests: TaskOutputTool wired with same repo; custom agents dir scan (with and without directory present).
-- [ ] VERIFY: `./mvnw test`
+- [x] FIX `TaskOutputTool` not registered: share the `DefaultTaskRepository` instance between `TaskTool` and a new `TaskOutputTool` registration. Background task results become retrievable.
+- [x] FIX custom agent loading: scan `.claude/agents/` in the working directory and `~/.claude/agents/` globally using `ClaudeSubagentReferences.fromRootDirectory()`. Add references to the `TaskTool.builder()` call. Skip gracefully if the directory doesn't exist.
+- [x] FIX multi-model routing: register named `ChatClient.Builder` entries (`"haiku"`, `"sonnet"`, `"opus"`) in `ClaudeSubagentType.builder()` using per-request model override via `ChatOptions`. The same underlying `ChatModel` is used — no new API credentials needed.
+- [x] FIX skills propagation to subagents: pass the same skills directories resolved for the main agent into `ClaudeSubagentType.builder().skillsDirectories()`.
+- [x] UPDATE `docs/subagents.md` — custom agent loading section now accurate (`.claude/agents/` actually scanned), `TaskOutput` tool documented, multi-model routing note updated.
+- [x] WRITE unit tests: TaskOutputTool wired with same repo; custom agents dir scan (with and without directory present).
+- [x] VERIFY: `./mvnw test`
 
 **Exit criteria**:
-- [ ] Background tasks retrievable via `TaskOutput` tool
-- [ ] `.claude/agents/*.md` files in working directory registered as subagents
-- [ ] `~/.claude/agents/*.md` global agents scanned
-- [ ] Multi-model routing works for `haiku`, `sonnet`, `opus` aliases
-- [ ] Skills directories propagated to subagents
-- [ ] Tests pass: `./mvnw test`
+- [x] Background tasks retrievable via `TaskOutput` tool
+- [x] `.claude/agents/*.md` files in working directory registered as subagents
+- [x] `~/.claude/agents/*.md` global agents scanned
+- [x] Multi-model routing works for `haiku`, `sonnet`, `opus` aliases
+- [x] Skills directories propagated to subagents
+- [x] Tests pass: `./mvnw test`
 - [ ] Create: `plans/learnings/step-7.0B-subagent-infra.md`
-- [ ] Update `ROADMAP.md` checkboxes
-- [ ] COMMIT
+- [x] Update `ROADMAP.md` checkboxes
+- [x] COMMIT
 
 ---
 
@@ -603,4 +603,4 @@ Every step's exit criteria must include:
 | 2026-03-10 | Mark roadmap-boot.md DONE (all 5 stages complete). Update skills status (Stages 1–3 done, Stage 4 next). Update Spring CLI Revival note. | Boot scaffolding complete |
 | 2026-03-12 | Add Step 7.0B: Subagent Infrastructure Completion — four gaps vs blog post: TaskOutputTool unregistered, custom agents not scanned, multi-model routing broken, skills not propagated. | Blog post gap analysis |
 | 2026-03-12 | Mark Step 7.0 DONE: system prompt rewritten with convention enforcement, git discipline, batched tool calls, output style, safety/security. All 6 prompt-only areas from research doc addressed. | Step 7.0 complete |
-| 2026-03-12 | Mark Steps 7.0A, 7.1, 7.4, 7.5, 7.6, 7.8 DONE. ListDirectory in spring-ai-agent-utils, AGENTS.md auto-injection, tool error tests, grace turn recovery, hash-based stuck detection, session persistence. | Roadmap sync |
+| 2026-03-12 | Mark Steps 7.0A, 7.0B, 7.1, 7.4, 7.5, 7.6, 7.8 DONE. ListDirectory, subagent infra (TaskOutputTool, custom agents, multi-model routing, skills propagation), AGENTS.md injection, tool error tests, grace turn, stuck detection, session persistence. | Roadmap sync |
