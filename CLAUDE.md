@@ -40,13 +40,13 @@ Requires API key for selected provider: `ANTHROPIC_API_KEY` (default), `OPENAI_A
 
 ## Implementation Progress
 
-Core complete — Spring Boot 4.0.3 adoption, multi-provider (Anthropic/OpenAI/Gemini), cost visibility, context compaction, agent observability (journal-core, debug logging). Skills complete (SkillsTool wired, `/skills` command, curated catalog with 23 skills, search/add/remove).
+Core complete — Spring Boot 4.0.3 adoption, multi-provider (Anthropic/OpenAI/Gemini), cost visibility, context compaction, agent observability (journal-core, debug logging). Skills complete (SkillsTool wired, `/skills` command, curated catalog with 23 skills, search/add/remove). Agent quality hardened (Stage 7): system prompt rewrite, ListDirectory tool, AGENTS.md injection, graceful tool errors, grace turn on max-turns, tool-call stuck detection, session persistence.
 **Source of truth**: `plans/ROADMAP.md` — main roadmap + index to feature roadmaps.
 **Boot scaffolding roadmap**: `plans/roadmap-boot.md` — Wave 2 priority #1: `/boot-new`, `/boot-add`, `/starters`, `/boot-modify`
 - `harness-patterns:0.9.0-SNAPSHOT` dep (not copy) — graph classes in `io.github.markpollack.harness.patterns.graph`
 - `FunctionGraphNode` for all LLM nodes — MiniAgent evolved past AgentLoop, backport is future work
 - `JavaParserRefactor` — deterministic package rename using JavaParser AST + `LexicalPreservingPrinter`; requires `JAVA_18` language level for record support
-- MiniAgent grow cycle = Stage 7 (Agent Quality): terminal-bench baseline 32/35, grow via experiment-driver, backport to agent-harness
+- MiniAgent grow cycle = Stage 7b (grow cycle: system prompt + mode-aware prompts via terminal-bench → experiment-driver)
 **Skills roadmap**: `plans/roadmap-skills.md`
 **Protocol stack roadmaps**: `plans/roadmap-mcp.md`, `plans/roadmap-acp.md`, `plans/roadmap-a2a.md`.
 
@@ -61,6 +61,7 @@ Single-module CLI with four layers:
 - **Command layer** (`command/`) — SlashCommand interface, SlashCommandRegistry, HelpCommand, ClearCommand — `io.github.markpollack.loopy.command`
 - **Forge layer** (`forge/`) — ExperimentBrief, TemplateCloner, TemplateCustomizer, ForgeAgentCommand — `io.github.markpollack.loopy.forge`
 - **Boot layer** (`boot/`) — `/boot-new`, `/starters`, `/boot-add`, `/boot-modify` — Spring Boot scaffolding + SAE analysis (`BootProjectAnalyzer` → `PROJECT-ANALYSIS.md`) — `io.github.markpollack.loopy.boot`
+- **Session layer** (`session/`) — `SessionStore` (JSON files in `~/.config/loopy/sessions/`), `SessionCommand` (`/session save|list|load`) — `io.github.markpollack.loopy.session`
 
 User input starting with `/` is intercepted by the command layer before reaching MiniAgent. Everything else flows through MiniAgent's agent loop (think → tool-call → observe).
 
@@ -94,11 +95,16 @@ MiniAgent is embedded — ~13 classes copied from agent-harness, evolving indepe
 - **Jackson 2.20+ required** — Jackson 3 (from Spring AI) introspects Jackson 2 annotations for backwards compat
 - **Multi-provider via `spring.ai.model.chat`** — all three starters on classpath, `--provider` sets system property pre-boot to activate exactly one
 - **Per-request compaction model** — same ChatModel, cheap model name via `ChatOptions.builder().model(name)` override. No separate API credentials needed.
+- **Grace turn on max-turns** — when `AgentLoopAdvisor` throws `MAX_TURNS_REACHED`, `MiniAgent` makes one tool-free call asking for a summary. Returns `COMPLETED_WITH_WARNING` if successful, falls back to `TURN_LIMIT_REACHED`.
+- **Tool-call stuck detection** — `ToolCallHashTracker` (SHA-256 per call) feeds `AgentLoopAdvisor`: triggers `STUCK_DETECTED` on 5 consecutive identical tool calls or A-B-A-B alternation over 10 turns. Complements existing output-hash check.
+- **Case-insensitive tool resolver** — unknown tool names fall back to bash rather than crashing (handles smaller models capitalizing "Bash", "LS", etc.)
+- **Session persistence** — `SessionStore` writes JSON to `~/.config/loopy/sessions/`. Includes message history (user/assistant/tool), metadata (model, provider, workdir). Auto-saves on TUI exit. `/session save|list|load` commands for manual control.
+- **AGENTS.md + CLAUDE.md injection** — `LoopyCommand.buildContextInjection()` appends both files to the system prompt (AGENTS.md first, CLAUDE.md second). Root working directory only.
 
 ## Dependencies
 
 - `tui4j` 0.3.3-SNAPSHOT — Terminal UI (Bubble Tea port for Java). Built from local source.
-- `spring-ai-agent-utils` 0.5.0-SNAPSHOT — Community tools (FileSystemTools, GlobTool, GrepTool, AskUserQuestionTool, TodoWriteTool, TaskTool)
+- `spring-ai-agent-utils` 0.5.0-SNAPSHOT — Community tools (FileSystemTools, GlobTool, GrepTool, ListDirectoryTool, AskUserQuestionTool, TodoWriteTool, TaskTool)
 - `journal-core` 1.0.1-SNAPSHOT — Structured agent run/event tracking (`io.github.markpollack:journal-core`)
 - `harness-patterns` 0.9.0-SNAPSHOT — Graph composition for boot scaffolding (`GraphCompositionStrategy`, `FunctionGraphNode`, `GraphContext`). Source: `~/projects/agent-harness/harness-patterns/`. Install: `cd ~/projects/agent-harness && JAVA_HOME=~/.sdkman/candidates/java/21.0.9-librca ./mvnw install -DskipTests`
 - `javaparser-core` 3.28.0 — Deterministic package rename in `/boot-new`. Configured at `JAVA_25`. Supports Java 1.0–25. Must be declared explicitly — NOT transitive.
