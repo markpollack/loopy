@@ -3,6 +3,7 @@ package io.github.markpollack.loopy.agent.loop;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.github.markpollack.loopy.agent.ToolCallHashTracker;
 import io.github.markpollack.loopy.agent.core.LoopState;
 import io.github.markpollack.loopy.agent.core.TerminationReason;
 import org.springframework.ai.chat.client.ChatClient;
@@ -108,6 +109,8 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 
 	private final ThreadLocal<String> userMessage = new ThreadLocal<>();
 
+	private final @Nullable ToolCallHashTracker toolCallHashTracker;
+
 	protected AgentLoopAdvisor(Builder builder) {
 		super(builder.toolCallingManager, builder.advisorOrder, true);
 		this.config = new AgentLoopConfig(builder.maxTurns, builder.timeout, builder.costLimit, builder.stuckThreshold,
@@ -121,6 +124,7 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 		this.compactionModelName = builder.compactionModelName;
 		this.contextLimit = builder.contextLimit;
 		this.compactionThreshold = builder.compactionThreshold;
+		this.toolCallHashTracker = builder.toolCallHashTracker;
 	}
 
 	@Override
@@ -193,16 +197,19 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 		double cost = estimateCost(tokens.input(), tokens.output(), modelName);
 		int outputSignature = computeOutputSignature(response);
 		boolean hasToolCalls = hasToolCalls(response);
+		String toolCallHash = toolCallHashTracker != null ? toolCallHashTracker.getAndResetTurnHash() : null;
 
-		LoopState newState = state.completeTurn(tokens.input(), tokens.output(), cost, hasToolCalls, outputSignature);
+		LoopState newState = state.completeTurn(tokens.input(), tokens.output(), cost, hasToolCalls, outputSignature,
+				toolCallHash);
 		loopState.set(newState);
 
 		int completedTurn = state.currentTurn();
 		log.debug("Turn {} completed: inputTokens={}, outputTokens={}, cost=${}, hasToolCalls={}", completedTurn + 1,
 				tokens.input(), tokens.output(), String.format("%.4f", cost), hasToolCalls);
 
-		// Check stuck detection
+		// Check stuck detection (output-based and tool-call-based)
 		checkStuckDetection(newState, response);
+		checkToolCallStuckDetection(newState, response);
 
 		// Notify turn completed (no termination)
 		notifyTurnCompleted(state.runId(), completedTurn, null);
@@ -254,6 +261,31 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 			notifyLoopCompleted(state.runId(), state, TerminationReason.STUCK_DETECTED);
 			throw new AgentLoopTerminatedException(TerminationReason.STUCK_DETECTED,
 					"Agent stuck: same output " + config.stuckThreshold() + " times", state, response);
+		}
+	}
+
+	private static final int TOOL_CALL_STUCK_THRESHOLD = 5;
+
+	private static final int TOOL_CALL_ALTERNATING_WINDOW = 10;
+
+	private void checkToolCallStuckDetection(LoopState state, ChatClientResponse response) {
+		if (toolCallHashTracker == null) {
+			return;
+		}
+		if (state.isToolCallStuck(TOOL_CALL_STUCK_THRESHOLD)) {
+			log.info("Agent stuck for run {}: same tool call repeated {} times", state.runId(),
+					TOOL_CALL_STUCK_THRESHOLD);
+			notifyLoopCompleted(state.runId(), state, TerminationReason.STUCK_DETECTED);
+			throw new AgentLoopTerminatedException(TerminationReason.STUCK_DETECTED,
+					"Agent stuck: same tool call repeated " + TOOL_CALL_STUCK_THRESHOLD + " times", state, response);
+		}
+		if (state.isAlternatingToolCalls(TOOL_CALL_ALTERNATING_WINDOW)) {
+			log.info("Agent stuck for run {}: alternating tool call pattern detected in last {} turns", state.runId(),
+					TOOL_CALL_ALTERNATING_WINDOW);
+			notifyLoopCompleted(state.runId(), state, TerminationReason.STUCK_DETECTED);
+			throw new AgentLoopTerminatedException(TerminationReason.STUCK_DETECTED,
+					"Agent stuck: A-B-A-B tool call pattern in last " + TOOL_CALL_ALTERNATING_WINDOW + " turns", state,
+					response);
 		}
 	}
 
@@ -567,6 +599,8 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 
 		private List<AgentLoopListener> listeners = new ArrayList<>();
 
+		private @Nullable ToolCallHashTracker toolCallHashTracker;
+
 		protected Builder() {
 		}
 
@@ -712,7 +746,11 @@ public class AgentLoopAdvisor extends ToolCallAdvisor {
 			return this;
 		}
 
-		@Override
+		public Builder toolCallHashTracker(ToolCallHashTracker tracker) {
+			this.toolCallHashTracker = tracker;
+			return this;
+		}
+
 		public AgentLoopAdvisor build() {
 			return new AgentLoopAdvisor(this);
 		}

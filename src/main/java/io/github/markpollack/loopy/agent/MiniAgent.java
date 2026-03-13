@@ -277,8 +277,9 @@ public class MiniAgent {
 		this.countingListener = new CountingToolCallListener(baseListener);
 
 		// Wire observability: ObservationRegistry -> ToolCallObservationHandler ->
-		// ToolCallListener
-		this.observationHandler = ToolCallObservationHandler.of(countingListener);
+		// ToolCallListeners (counting + hash tracking for stuck detection)
+		var hashTracker = new ToolCallHashTracker();
+		this.observationHandler = ToolCallObservationHandler.of(List.of(countingListener, hashTracker));
 		var registry = ObservationRegistry.create();
 		registry.observationConfig().observationHandler(observationHandler);
 
@@ -299,7 +300,8 @@ public class MiniAgent {
 		// Build AgentLoopAdvisor with optional listener bridge
 		var advisorBuilder = AgentLoopAdvisor.builder()
 			.toolCallingManager(toolCallingManager)
-			.maxTurns(config.maxTurns());
+			.maxTurns(config.maxTurns())
+			.toolCallHashTracker(hashTracker);
 
 		if (builder.timeout != null) {
 			advisorBuilder.timeout(builder.timeout);
