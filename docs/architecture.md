@@ -1,13 +1,15 @@
 # Architecture
 
-Loopy is a single Maven module organized into four layers. Each layer has a clear responsibility and communicates through well-defined interfaces.
+Loopy is a single Maven module organized into six layers. Each layer has a clear responsibility and communicates through well-defined interfaces.
 
 ```
 io.github.markpollack.loopy
 ├── agent/    Agent loop, tool execution, skills, observability
 ├── tui/      Terminal UI (Elm Architecture)
 ├── command/  Slash command framework
-└── forge/    Project scaffolding
+├── forge/    Project scaffolding (forge-agent)
+├── boot/     Spring Boot scaffolding commands
+└── session/  Session persistence
 ```
 
 ## Layers
@@ -64,6 +66,25 @@ Project scaffolding for agent experiment projects.
 - `KBBootstrapPromptBuilder` — Templates for knowledge base reference harvesting
 
 **Design choice:** Forge classes are copied from [markpollack/forge](https://github.com/markpollack/forge), not depended on via Maven. Same rationale as MiniAgent — avoids transitive dependencies and allows independent evolution.
+
+### Boot Layer (`boot/`)
+
+Spring Boot project scaffolding commands. All POM mutations are deterministic (Maven object model — no AI-generated XML). LLM is used only for natural language intent routing and preference extraction.
+
+**Key components:**
+- `BootNewCommand` — `/boot-new`: scaffold from bundled templates (4 templates, ScaffoldGraph, JavaParserRefactor)
+- `BootSetupCommand` — `/boot-setup`: one-time preferences wizard (groupId, Java version, deps, database) saved to `~/.config/loopy/boot/preferences.yml`
+- `BootAddCommand` — `/boot-add`: analyze project structure (SAE analysis → `PROJECT-ANALYSIS.md`), add Agent Starter dependency
+- `BootModifyCommand` — `/boot-modify`: 11 deterministic recipes routed via LLM intent classification
+- `StartersCommand` — `/starters`: Agent Starter catalog discovery and `pom.xml`-based suggestions
+
+### Session Layer (`session/`)
+
+Conversation persistence across Loopy restarts.
+
+**Key components:**
+- `SessionStore` — Serializes Spring AI `Message` history to JSON files in `~/.config/loopy/sessions/{timestamp}-{slug}.json`. Methods: `save()`, `load()`, `list()`.
+- `SessionCommand` — `/session save|list|load` slash command. Auto-save fires on TUI exit via `/quit`.
 
 ## Data Flow
 

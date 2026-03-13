@@ -116,12 +116,15 @@ In TUI and REPL modes, lines starting with `/` are intercepted before reaching t
 | `/help` | List available commands |
 | `/clear` | Clear session memory (start fresh conversation) |
 | `/quit` | Exit Loopy |
+| `/btw <question>` | Ask a side question without interrupting session context — stateless, never added to conversation history |
 | `/skills` | Discover, search, install, and manage domain skills |
 | `/boot-new` | Scaffold a new Spring Boot project from a bundled template |
+| `/boot-setup` | One-time preferences wizard — groupId, Java version, always-add deps, preferred database |
 | `/starters` | Discover Agent Starters; suggest by pom.xml triggers |
 | `/boot-add` | Bootstrap domain capabilities into an existing Spring Boot project |
 | `/boot-modify` | Apply structural modifications — set Java version, add native support, add CI, clean pom, and more |
 | `/forge-agent --brief <path>` | Bootstrap an agent experiment project from a YAML brief |
+| `/session` | Save, list, or load sessions: `save [name]` / `list` / `load <id>` |
 
 ## Features
 

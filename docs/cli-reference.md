@@ -162,6 +162,16 @@ Scaffold a new Spring Boot project from a bundled template. Accepts structured f
 
 Use `--no-llm` (structured path only) to skip the optional AI customization pass.
 
+### `/boot-setup`
+
+One-time preferences wizard for Spring Boot scaffolding. Prompts for groupId, Java version, always-add dependencies, and preferred database. Saved to `~/.config/loopy/boot/preferences.yml` and applied automatically to every subsequent `/boot-new`.
+
+```
+/boot-setup
+```
+
+`/boot-new` redirects here automatically on first use if no preferences exist yet.
+
 ### `/starters`
 
 Discover Agent Starters and get suggestions for your project.
@@ -248,6 +258,23 @@ Scaffolds an agent experiment project from a YAML brief.
 ```
 
 See [Forge Agent](forge-agent.md) for details on the brief format and customization pipeline.
+
+### `/session`
+
+Save, list, and restore conversation sessions. Sessions are stored as JSON files in `~/.config/loopy/sessions/`. Auto-saved on `/quit`.
+
+```
+/session save [name]    # Save current session (auto-named if omitted)
+/session list           # List saved sessions with timestamps and sizes
+/session load <id>      # Restore a previous session (partial ID prefix accepted)
+```
+
+```
+/session save
+/session save my-refactor
+/session list
+/session load 20260313
+```
 
 ## Multi-Provider Examples
 

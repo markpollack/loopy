@@ -198,9 +198,9 @@ When working on this codebase:
 
 See `/skills info skill-creator` for the full authoring guide.
 
-## CLAUDE.md Auto-Injection
+## CLAUDE.md and AGENTS.md Auto-Injection
 
-Loopy automatically reads `CLAUDE.md` from the working directory and appends it to the agent's system prompt. Place a `CLAUDE.md` file in your project root to give the agent project-specific context. Example:
+Loopy automatically reads `AGENTS.md` and `CLAUDE.md` from the working directory and appends both to the agent's system prompt (AGENTS.md first, CLAUDE.md second — CLAUDE.md takes precedence as it is more specific). `AGENTS.md` is the cross-vendor standard for project-level agent instructions, adopted by Codex, Gemini CLI, Cursor, Aider, and others. Place either or both files in your project root. Example:
 
 ```markdown
 # Project Instructions
