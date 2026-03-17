@@ -40,7 +40,7 @@ Requires API key for selected provider: `ANTHROPIC_API_KEY` (default), `OPENAI_A
 
 ## Implementation Progress
 
-Core complete — Spring Boot 4.0.3 adoption, multi-provider (Anthropic/OpenAI/Gemini), cost visibility, context compaction, agent observability (journal-core, debug logging). Skills complete (SkillsTool wired, `/skills` command, curated catalog with 23 skills, search/add/remove). Agent quality hardened (Stage 7): system prompt rewrite, ListDirectory tool, AGENTS.md injection, graceful tool errors, grace turn on max-turns, tool-call stuck detection, session persistence.
+Core complete — Spring Boot 4.0.3 adoption, multi-provider (Anthropic/OpenAI/Gemini), cost visibility, context compaction, agent observability (journal-core, debug logging). Skills complete (SkillsTool wired, `/skills` command, curated catalog with 23 skills, search/add/remove). Agent quality hardened (Stage 7): system prompt rewrite, ListDirectory tool, AGENTS.md injection, graceful tool errors, grace turn on max-turns, tool-call stuck detection, session persistence. Modular foundation (Stage 8a/8b): `AgentYaml` + `AgentYamlLoader` (post-boot declarative config), `LoopyToolsFactory` (profile bundles: dev/boot/headless/readonly), `ToolProfileContributor` SPI (custom tool JARs via Maven classpath + `ServiceLoader`).
 **Source of truth**: `plans/ROADMAP.md` — main roadmap + index to feature roadmaps.
 **Boot scaffolding roadmap**: `plans/roadmap-boot.md` — Wave 2 priority #1: `/boot-new`, `/boot-add`, `/starters`, `/boot-modify`
 - `harness-patterns:0.9.0-SNAPSHOT` dep (not copy) — graph classes in `io.github.markpollack.harness.patterns.graph`
@@ -54,14 +54,15 @@ Core complete — Spring Boot 4.0.3 adoption, multi-provider (Anthropic/OpenAI/G
 
 Spring Boot 4.0.3 CLI (no web server). `LoopyApp` is `@SpringBootApplication` + `CommandLineRunner` — boots Spring context, gets auto-configured `ChatModel`, passes it to `LoopyCommand` (plain Picocli `@Command`, not a Spring bean).
 
-Single-module CLI with four layers:
+Single-module CLI with six layers:
 
-- **Agent layer** (`agent/`) — MiniAgent (first field agent, copied from agent-harness), AgentLoopAdvisor, BashTool, observability — `io.github.markpollack.loopy.agent`
+- **Agent layer** (`agent/`) — MiniAgent (first field agent, copied from agent-harness), AgentLoopAdvisor, BashTool, observability — `io.github.markpollack.loopy.agent`; `agent/config/` — `AgentYaml`, `AgentYamlLoader` (post-boot YAML loading)
 - **TUI layer** (`tui/`) — ChatScreen (Elm Architecture via tui4j), ChatEntry — `io.github.markpollack.loopy.tui`
 - **Command layer** (`command/`) — SlashCommand interface, SlashCommandRegistry, HelpCommand, ClearCommand — `io.github.markpollack.loopy.command`
 - **Forge layer** (`forge/`) — ExperimentBrief, TemplateCloner, TemplateCustomizer, ForgeAgentCommand — `io.github.markpollack.loopy.forge`
 - **Boot layer** (`boot/`) — `/boot-new`, `/starters`, `/boot-add`, `/boot-modify` — Spring Boot scaffolding + SAE analysis (`BootProjectAnalyzer` → `PROJECT-ANALYSIS.md`) — `io.github.markpollack.loopy.boot`
 - **Session layer** (`session/`) — `SessionStore` (JSON files in `~/.config/loopy/sessions/`), `SessionCommand` (`/session save|list|load`) — `io.github.markpollack.loopy.session`
+- **Tools layer** (`tools/`) — `LoopyToolsFactory` (profile bundles), `ToolFactoryContext`, `ToolProfileContributor` SPI (custom tools via classpath) — `io.github.markpollack.loopy.tools`
 
 User input starting with `/` is intercepted by the command layer before reaching MiniAgent. Everything else flows through MiniAgent's agent loop (think → tool-call → observe).
 

@@ -38,6 +38,9 @@ io.github.markpollack.loopy/
 │   ├── DebugLoopListener.java           # --debug stderr output (turn numbers, cost)
 │   ├── callback/
 │   │   └── AgentCallback.java           # Event callback interface
+│   ├── config/
+│   │   ├── AgentYaml.java               # agent.yaml binding record
+│   │   └── AgentYamlLoader.java         # Loads agent.yaml (project + global)
 │   ├── core/
 │   │   ├── ToolCallListener.java        # Observability interface
 │   │   ├── LoopState.java               # Immutable state (turns, tokens, cost, stuck detection)
@@ -52,14 +55,32 @@ io.github.markpollack.loopy/
 ├── tui/
 │   ├── ChatScreen.java        # Elm Architecture Model (tui4j)
 │   └── ChatEntry.java         # Immutable chat history record (USER/ASSISTANT/SYSTEM)
+├── boot/
+│   ├── BootNewCommand.java    # /boot-new — scaffold new Spring Boot project
+│   ├── BootModifyCommand.java # /boot-modify — structural POM modifications
+│   ├── BootAddCommand.java    # /boot-add — bootstrap Agent Starter into existing project
+│   ├── StartersCommand.java   # /starters — discover Agent Starters
+│   ├── BootSetupCommand.java  # /boot-setup — one-time preferences wizard
+│   ├── ScaffoldGraph.java     # Harness-patterns graph for boot-new pipeline
+│   ├── BootNewTool.java       # Tool wrapper for boot-new (profile: boot)
+│   └── BootModifyTool.java    # Tool wrapper for boot-modify (profile: boot)
 ├── command/
 │   ├── SlashCommand.java      # Interface: name(), description(), execute(args, context)
 │   ├── SlashCommandRegistry.java  # Maps "/name" → SlashCommand, dispatches
 │   ├── HelpCommand.java       # /help — lists available commands
 │   ├── ClearCommand.java      # /clear — clears agent session
 │   ├── QuitCommand.java       # /quit — exits Loopy
+│   ├── BtwCommand.java        # /btw — stateless side question (no session context)
+│   ├── ModelCommand.java      # /model — show or change active model
+│   ├── SessionCommand.java    # /session — save, list, load sessions
 │   ├── SkillsCommand.java     # /skills — list, info, search, add, remove
 │   └── SkillsCatalog.java     # Curated catalog (skills-catalog.json from classpath)
+├── session/
+│   └── SessionStore.java      # JSON session persistence (~/.config/loopy/sessions/)
+├── tools/
+│   ├── LoopyToolsFactory.java      # Builds tool lists by profile name
+│   ├── ToolFactoryContext.java     # Context passed to ToolProfileContributor
+│   └── ToolProfileContributor.java # Java ServiceLoader SPI for custom tool JARs
 └── forge/
     ├── ForgeAgentCommand.java # /forge-agent — scaffold experiment project from brief
     ├── ExperimentBrief.java   # YAML brief parser
@@ -120,10 +141,12 @@ io.github.markpollack.loopy/
 │   │  LoopState (turns, tokens, cost)             │        │
 │   │  DebugToolCallListener, DebugLoopListener    │        │
 │   │                                              │        │
-│   │  Tools:                                      │        │
-│   │    FileSystemTools, BashTool, GlobTool,      │        │
-│   │    GrepTool, AskUserQuestionTool,            │        │
-│   │    TodoWriteTool, TaskTool, SkillsTool       │        │
+│   │  Tools (profile-filtered via agent.yaml):    │        │
+│   │    dev: bash, FileSystem, Glob, Grep,        │        │
+│   │         ListDir, TodoWrite, AskUser          │        │
+│   │    boot: BootNew, BootModify                 │        │
+│   │    + TaskTool, SkillsTool (always)           │        │
+│   │    + custom via ToolProfileContributor SPI   │        │
 │   │                                              │        │
 │   │  Provider (one active per session):          │        │
 │   │    Anthropic │ OpenAI │ Google Gemini         │        │
@@ -231,7 +254,9 @@ public interface SlashCommand {
 ```java
 public record CommandContext(
     Path workingDirectory,
-    Runnable clearSession
+    Runnable clearSession,
+    Consumer<String> setModel,
+    Function<String, String> agentDelegate
 ) {}
 ```
 
@@ -273,6 +298,10 @@ META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 **Profile filtering** (see DD-16): all tool `ToolCallback` beans are registered by auto-configuration unconditionally. Profile filtering happens at MiniAgent construction time — only beans matching the active profiles are passed to the agent. This avoids pre-boot complexity; `agent.yaml` is loaded after the Spring context starts.
 
 **Rationale**: This is exactly how Spring Boot starters work. Add dependency → beans appear → agent gains capability. Zero code for the user. Works with SkillsJars (classpath skills), MCP tool callbacks, and A2A remote-agent tools by the same mechanism.
+
+**Current state (Stage 8a/8b — SPI-first validation)**: `LoopyToolsFactory` organizes tool construction by profile name. `ToolProfileContributor` (Java `ServiceLoader` SPI) enables custom tool JARs via classpath — declare in `pom.xml`, implement the interface, register via `META-INF/services`. This validates the profile filtering design before Maven module extraction.
+
+**Eventual target (Maven module extraction)**: each profile becomes its own Maven module with a Spring `AutoConfiguration` class. `loopy-tools-dev`, `loopy-tools-boot` etc. as published artifacts. Profile filtering moves from `LoopyToolsFactory` to Spring bean collection at MiniAgent construction time. Same agent.yaml contract, different delivery mechanism.
 
 ---
 
@@ -407,6 +436,8 @@ Client client = Client.builder(card)
 - `agents: Map<String, AgentConnectionProperties>` (name → url, timeout, modes)
 
 **Upstream path**: Contribute `spring-ai-a2a-client-autoconfigure` to `spring-ai-community/spring-ai-a2a`. The module fills the symmetric gap opposite the existing server autoconfigure.
+
+**Upstream contribution timing**: Do not contribute `A2AClientAutoConfiguration` upstream to `spring-ai-a2a` until Loopy controls that repo or the timing is right. Implement in Loopy first, validate the design, then propose.
 
 ---
 
@@ -551,12 +582,6 @@ Depends on DD-9 direction. Deferred.
 
 Depends on DD-9 direction. Deferred.
 
-### DD-18: `/forge-agent` Evolution — Declarative Agent Artifacts
-
-Deferred until DD-12 (tool auto-config), DD-13 (agent.yaml), and DD-15 (A2A client auto-config) are complete. At that point `/forge-agent` can produce a fully configured agent — `agent.yaml` + `pom.xml` + AGENTS.md — with no Java authoring needed for common cases.
-
----
-
 ## Testing Strategy
 
 - **Unit tests**: SlashCommand dispatch, ChatEntry, ExperimentBrief parsing, SkillsCatalog search, SkillsCommand subcommands
@@ -585,3 +610,4 @@ Deferred until DD-12 (tool auto-config), DD-13 (agent.yaml), and DD-15 (A2A clie
 | 2026-03-08 | Major update — add skills architecture (DD-8), Agent Starters (DD-9), SAE (DD-10), multi-provider (DD-7), updated package structure, component diagram | Strategic clarity before Stage 4 |
 | 2026-03-13 | Modular platform design — DD-1 revised (multi-module), DD-12 (tool plugin SPI), DD-13 (agent.yaml schema), DD-14 (MCP .mcp.json), DD-15 (A2A client auto-config + upstream contribution), DD-16 (profile bundles), DD-17 (headless runtime), DD-18 (forge-agent evolution, deferred). | Loopy as agent forge platform |
 | 2026-03-13 | Resolve open design questions: DD-12/16 corrected (runtime filter at MiniAgent construction, not @ConditionalOnProperty; agent.yaml loads after Spring context boots). Add DD-19: ACP integration (lightweight, annotation-based, stdio/WebSocket, ~3-6h, IDE editor transport). | Design question resolution |
+| 2026-03-13 | Stage 8a/8b implementation: add ToolProfileContributor SPI to DD-12 (current SPI-first state vs eventual Spring AutoConfiguration target). Fix CommandContext (4 fields). Add tools/ and boot/ packages to package structure. Remove duplicate DD-18 from Deferred. Note DD-15 upstream timing. | Stage 8 implementation review |

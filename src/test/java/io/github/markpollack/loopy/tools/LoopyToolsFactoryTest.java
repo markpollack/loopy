@@ -3,12 +3,15 @@ package io.github.markpollack.loopy.tools;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.definition.ToolDefinition;
 
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class LoopyToolsFactoryTest {
 
@@ -93,6 +96,60 @@ class LoopyToolsFactoryTest {
 		List<ToolCallback> tools = LoopyToolsFactory.toolsForProfiles(List.of(), ctx);
 
 		assertThat(tools).isEmpty();
+	}
+
+	@Test
+	void customContributorProfileIsResolved(@TempDir Path dir) {
+		var ctx = ToolFactoryContext.headless(dir, null, Duration.ofSeconds(30));
+
+		ToolCallback mockTool = mock(ToolCallback.class);
+		ToolDefinition def = ToolDefinition.builder()
+			.name("my-custom-tool")
+			.description("test")
+			.inputSchema("{}")
+			.build();
+		when(mockTool.getToolDefinition()).thenReturn(def);
+
+		ToolProfileContributor contributor = new ToolProfileContributor() {
+			@Override
+			public String profileName() {
+				return "my-db-tools";
+			}
+
+			@Override
+			public List<ToolCallback> tools(ToolFactoryContext factoryCtx) {
+				return List.of(mockTool);
+			}
+		};
+
+		List<ToolCallback> tools = LoopyToolsFactory.toolsForProfiles(List.of("my-db-tools"), ctx,
+				List.of(contributor));
+
+		assertThat(toolNames(tools)).contains("my-custom-tool");
+	}
+
+	@Test
+	void contributorDoesNotOverrideBuiltInProfile(@TempDir Path dir) {
+		var ctx = ToolFactoryContext.headless(dir, null, Duration.ofSeconds(30));
+
+		// A contributor claiming "dev" should be ignored — built-in switch takes
+		// precedence
+		ToolProfileContributor impostor = new ToolProfileContributor() {
+			@Override
+			public String profileName() {
+				return "dev";
+			}
+
+			@Override
+			public List<ToolCallback> tools(ToolFactoryContext factoryCtx) {
+				return List.of(); // would return empty if used
+			}
+		};
+
+		List<ToolCallback> tools = LoopyToolsFactory.toolsForProfiles(List.of("dev"), ctx, List.of(impostor));
+
+		// Built-in dev tools still present
+		assertThat(toolNames(tools)).contains("bash", "Read");
 	}
 
 	private List<String> toolNames(List<ToolCallback> tools) {

@@ -23,7 +23,7 @@ Each major protocol integration has its own detailed roadmap to keep documents m
 |---------|-------|--------|-------------|
 | [`roadmap-boot.md`](roadmap-boot.md) | 7.0 | **DONE** | `/boot-new`, `/starters`, `/boot-add`, `/boot-modify` — all 5 stages complete (2026-03-10) |
 | [`roadmap-skills.md`](roadmap-skills.md) | 7.5 | **DONE (Stages 1–3)** | Stages 1–3 DONE (SkillsTool, `/skills`, 23-skill catalog). Stages 4–6 DEFERRED — SkillsJars handles packaging. |
-| — | 8 | **NEXT** | **Modular Foundation** — tool plugin SPI (DD-12), `agent.yaml` (DD-13), profile bundles (DD-16), headless runtime (DD-17) |
+| — | 8 | **IN PROGRESS** | **Modular Foundation** — 8a DONE (AgentYaml, LoopyToolsFactory, profile bundles), 8b DONE (ToolProfileContributor SPI), **8c NEXT** (SkillsJars classpath scanning) |
 | [`roadmap-mcp.md`](roadmap-mcp.md) | 9 | TODO | MCP client — `.mcp.json` standard format (DD-14), lazy startup |
 | [`roadmap-acp.md`](roadmap-acp.md) | 9.5 | TODO | ACP agent mode (DD-19) — editors drive Loopy via stdio/WebSocket, ~3-6h |
 | [`roadmap-a2a.md`](roadmap-a2a.md) | 10 | TODO | A2A client auto-config (DD-15) — declarative YAML, contribute upstream to spring-ai-a2a |
@@ -466,27 +466,49 @@ All four fixes are pure wiring changes to `MiniAgent.java`. No new abstractions 
 
 ## Stage 8: Modular Foundation
 
-> **Prerequisite for all protocol integrations.** Implements the design decisions in DESIGN.md DD-12, DD-13, DD-16, DD-17 that enable tool plugin SPI, declarative `agent.yaml`, profile bundles, and headless runtime.
+> **Prerequisite for all protocol integrations.** Implements DD-12, DD-13, DD-16, DD-17: tool plugin SPI, declarative `agent.yaml`, profile bundles, headless runtime.
 
-### Why this stage comes first
+### Step 8.a: SPI-first validation — AgentYaml + LoopyToolsFactory ✅ DONE
 
-Without modular tool discovery, every new protocol (MCP, ACP, A2A) requires manual wiring in `MiniAgent.java`. With tool plugin SPI, adding a protocol means adding a JAR — zero code changes to the runtime. `agent.yaml` gives each protocol a consistent declarative entry point. Headless runtime makes Loopy composable (CI, Docker, A2A server, ACP subprocess) without dragging in TUI code.
+- [x] `AgentYaml` + `AgentYamlLoader` — post-boot loading; `./agent.yaml` → `~/.config/loopy/agent.yaml` → defaults
+- [x] `ToolFactoryContext` record — workingDirectory, chatModel, commandTimeout, interactive, agentCallback
+- [x] `LoopyToolsFactory` — profile bundles: `dev`, `boot`, `headless`, `readonly`; unknown profiles logged and skipped
+- [x] `MiniAgent.Builder.profileToolCallbacks()` — new path; legacy path preserved for backwards compat
+- [x] `LoopyCommand.createAgent()` — loads `agent.yaml`, calls factory, passes profile tools to builder
+- [x] Boot tools (`BootNewTool`, `BootModifyTool`) moved out of `LoopyCommand` into `boot` profile in factory
+- [x] 16 new tests: `AgentYamlLoaderTest` (8), `LoopyToolsFactoryTest` (8)
+- [x] COMMIT
 
-### Work items (detailed steps TBD when this stage begins)
+### Step 8.b: ToolProfileContributor SPI ✅ DONE
 
-- [ ] **Tool plugin SPI** (DD-12): Each tool group provides an `AutoConfiguration` contributing `ToolCallback` beans. MiniAgent collects all `ToolCallback` beans from context.
-- [ ] **`agent.yaml` loading** (DD-13): `AgentYamlLoader` reads `./agent.yaml` → `~/.config/loopy/agent.yaml` → built-in defaults, after Spring context boots.
-- [ ] **Profile filtering** (DD-16): `ToolProfileFilter` at MiniAgent construction — CSV `tools.profiles` in `agent.yaml` → filter full `ToolCallback` bean set.
-- [ ] **Headless runtime** (DD-17): `loopy-runtime` module split from `loopy-cli`. TUI is a `loopy-cli` concern. Runtime runs headless in CI/Docker/ACP/A2A.
-- [ ] **SPI-first validation**: Prove design with current tools (bash, file, boot) as packages before extracting Maven modules.
-- [ ] Write unit tests: profile filter selects correct beans; agent.yaml parsed; default profile applies when no yaml present.
+Custom tool JARs drop onto the classpath as Maven dependencies (declared in the agent project's `pom.xml`). The classpath IS the plugin directory — no global tool directories, no cross-agent conflicts.
+
+- [x] `ToolProfileContributor` interface — `profileName()` + `tools(ToolFactoryContext)`, registered via `META-INF/services`
+- [x] `LoopyToolsFactory` — `ServiceLoader` lookup after built-in switch; injectable overload for testing
+- [x] Warning updated: unknown profiles log the contributor registration path
+- [x] 2 new tests: contributor resolved, contributor cannot override built-in profile
+- [x] COMMIT
+
+### Step 8.c: SkillsJars classpath scanning (forged agent projects) — NEXT
+
+Applies to **forged agent projects** (standalone Maven projects, no TUI, no `/skills` command). Loopy CLI's existing `/skills add` + disk catalog already handles the interactive case.
+
+A forged agent project wires `SkillsTool` into its agent loop. Today, skills must be present on disk. With this step, declaring a SkillsJar in the project's `pom.xml` is sufficient — `SkillsTool` scans `META-INF/skills/**` on the classpath and the skills are available to the agent loop automatically. No install step, no extraction for markdown, no catalog update. Same distribution model as any other Maven dependency.
+
+**Design**:
+- Skills (`.md` files): read directly from classpath via `ClassLoader.getResources("META-INF/skills/")` — no extraction, no disk writes
+- Scripts (executables bundled alongside `SKILL.md`): extracted to project-local `./skills/{org}/{repo}/{skill}/` on first activation — per-project scope, no global state
+
+**Work items**:
+- [ ] IMPLEMENT `ClasspathSkillsScanner` — scans `META-INF/skills/**/*.md` on classpath, parses frontmatter, returns `List<SkillDefinition>`
+- [ ] UPDATE `SkillsTool` — merge classpath-discovered skills with existing disk-based skills at startup
+- [ ] IMPLEMENT script extraction — on skill activation, extract non-`.md` files to `./skills/{path}/` relative to working directory; `chmod +x` executables
+- [ ] WRITE unit tests: scanner finds skills from test classpath resources; script extraction to temp dir
 - [ ] VERIFY: `./mvnw test`
 
-### Exit criteria
-
-- [ ] All existing tools discoverable via auto-configuration
-- [ ] `agent.yaml` loaded; active profiles filter MiniAgent's tool set
-- [ ] Headless runtime functional (print mode with no TUI dependency)
+**Exit criteria**:
+- [ ] SkillsJar on classpath → skills available to `SkillsTool` in forged agent loop with no install step
+- [ ] Script extraction to project-local `./skills/` on first activation
 - [ ] Tests pass: `./mvnw test`
 - [ ] COMMIT
 
@@ -559,6 +581,16 @@ Without modular tool discovery, every new protocol (MCP, ACP, A2A) requires manu
 | GAP-19 | tree-sitter code parsing | Large |
 | GAP-20 | Recipe/task definition system | Medium |
 | Loop Gap 5 | Parallel tool execution | Medium |
+
+### loopy-agent-spring-boot-starter (future product direction)
+
+> **Rationale**: Embed an agent inside an existing Spring Boot app to make it "smart." `ToolProfileContributor` becomes a Spring `@Bean` (Spring context replaces `ServiceLoader`). `@Tool`-annotated service methods auto-discovered. Exposes `/agent` endpoint or WebSocket for chat. The agent runs in the same JVM as the app — accesses domain services directly, same transaction context.
+>
+> **PetClinic demo**: add the starter → annotate `OwnerService` methods with `@Tool` → natural language CRUD over the domain model. Zero boilerplate.
+>
+> **Relationship to Loopy CLI**: same core abstractions (`ToolProfileContributor`, `agent.yaml`, MiniAgent) — delivery mechanism adapts to the container (Spring beans vs. `ServiceLoader`). CLI is the developer workbench; starter is the runtime component for apps.
+>
+> **When**: after Stage 8 (modular foundation solid), MCP integration proven. The starter inherits MCP + A2A capabilities immediately.
 
 ### Spring CLI Revival
 
@@ -634,3 +666,4 @@ Every step's exit criteria must include:
 | 2026-03-12 | Mark Step 7.0 DONE: system prompt rewritten with convention enforcement, git discipline, batched tool calls, output style, safety/security. All 6 prompt-only areas from research doc addressed. | Step 7.0 complete |
 | 2026-03-12 | Mark Steps 7.0A, 7.0B, 7.1, 7.4, 7.5, 7.6, 7.8 DONE. ListDirectory, subagent infra (TaskOutputTool, custom agents, multi-model routing, skills propagation), AGENTS.md injection, tool error tests, grace turn, stuck detection, session persistence. | Roadmap sync |
 | 2026-03-13 | Add Stage 8 (Modular Foundation — DD-12/13/16/17). Renumber MCP→9, ACP→9.5, Knowledge Activation→11. Move A2A from Wave 3 to Wave 2. Mark Skills Stages 4–6 DEFERRED (SkillsJars handles packaging). Update order rationale. Wave summary updated. | Design review: modular platform |
+| 2026-03-13 | Stage 8a DONE (AgentYaml, AgentYamlLoader, LoopyToolsFactory, ToolFactoryContext, MiniAgent.profileToolCallbacks). Stage 8b DONE (ToolProfileContributor SPI via ServiceLoader, injectable for testing). Add Stage 8c (SkillsJars classpath scanning — META-INF/skills/**, script extraction to project-local ./skills/). Add loopy-agent-spring-boot-starter to Future Waves. Classpath IS the plugin directory — no ~/.config/loopy/tools/ global dir. | Stage 8 implementation + AgentJars design discussion |

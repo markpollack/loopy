@@ -21,13 +21,12 @@ import org.springframework.ai.tool.ToolCallback;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.ServiceLoader;
 
 /**
  * Creates {@link ToolCallback} lists for named tool profiles (DD-12, DD-16).
  * <p>
- * This is the "SPI-first" implementation — tools are organized by profile name,
- * validating the design before Maven module extraction. Each profile corresponds to a
- * named capability set:
+ * Built-in profiles:
  * <ul>
  * <li>{@code dev} — bash, file-system, grep, glob, list-directory, todo-write,
  * ask-user-question (when interactive), brave-search (when BRAVE_API_KEY set)</li>
@@ -36,10 +35,10 @@ import java.util.List;
  * <li>{@code readonly} — read-only: file-system, grep, glob, list-directory only</li>
  * </ul>
  * <p>
- * When Maven modules are extracted, each profile maps to its own
- * {@code AutoConfiguration} class contributing {@code ToolCallback} beans. Profile
- * filtering moves from here to MiniAgent construction time (same logic, different
- * delivery mechanism).
+ * Custom profiles are supported via {@link ToolProfileContributor} — implement the
+ * interface and register via {@code META-INF/services} (Java {@link ServiceLoader}). The
+ * profile name declared in {@code agent.yaml} must match
+ * {@link ToolProfileContributor#profileName()}.
  */
 @NullMarked
 public class LoopyToolsFactory {
@@ -48,14 +47,28 @@ public class LoopyToolsFactory {
 
 	/**
 	 * Returns the combined list of tool callbacks for the given profiles, in declaration
-	 * order. Unknown profile names are logged and skipped.
+	 * order. Unknown profile names (no built-in, no contributor) are logged and skipped.
 	 */
 	public static List<ToolCallback> toolsForProfiles(List<String> profiles, ToolFactoryContext ctx) {
+		List<ToolProfileContributor> contributors = ServiceLoader.load(ToolProfileContributor.class)
+			.stream()
+			.map(ServiceLoader.Provider::get)
+			.toList();
+		return toolsForProfiles(profiles, ctx, contributors);
+	}
+
+	/**
+	 * Package-private overload — accepts an explicit contributor list for testing.
+	 */
+	static List<ToolCallback> toolsForProfiles(List<String> profiles, ToolFactoryContext ctx,
+			List<ToolProfileContributor> contributors) {
 		List<ToolCallback> result = new ArrayList<>();
 		for (String profile : profiles) {
-			List<ToolCallback> bundle = bundleFor(profile, ctx);
+			List<ToolCallback> bundle = bundleFor(profile, ctx, contributors);
 			if (bundle.isEmpty() && !isKnownProfile(profile)) {
-				log.warn("Unknown tool profile '{}' — skipping. Known profiles: dev, boot, headless, readonly",
+				log.warn(
+						"No tools found for profile '{}' — skipping. Built-in profiles: dev, boot, headless, readonly. "
+								+ "Custom profiles require a ToolProfileContributor registered via META-INF/services.",
 						profile);
 			}
 			result.addAll(bundle);
@@ -70,13 +83,18 @@ public class LoopyToolsFactory {
 		};
 	}
 
-	private static List<ToolCallback> bundleFor(String profile, ToolFactoryContext ctx) {
+	private static List<ToolCallback> bundleFor(String profile, ToolFactoryContext ctx,
+			List<ToolProfileContributor> contributors) {
 		return switch (profile) {
 			case "dev" -> devTools(ctx);
 			case "boot" -> bootTools(ctx);
 			case "headless" -> headlessTools(ctx);
 			case "readonly" -> readonlyTools(ctx);
-			default -> List.of();
+			default -> contributors.stream()
+				.filter(c -> c.profileName().equals(profile))
+				.findFirst()
+				.map(c -> c.tools(ctx))
+				.orElse(List.of());
 		};
 	}
 
