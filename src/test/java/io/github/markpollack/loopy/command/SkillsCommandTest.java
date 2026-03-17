@@ -21,11 +21,14 @@ class SkillsCommandTest {
 	private final SkillsCommand command = new SkillsCommand();
 
 	@Test
-	void listNoSkills(@TempDir Path tempDir) {
+	void listShowsClasspathSkillsWhenNoFilesystemSkills(@TempDir Path tempDir) {
+		// No .claude/skills/ directory, but classpath skill (META-INF/skills in test
+		// resources) is always present
 		var ctx = new CommandContext(tempDir, () -> {
 		});
 		String result = command.execute("list", ctx);
-		assertThat(result).contains("No skills installed");
+		// Classpath skill from test resources is discovered and listed
+		assertThat(result).contains("classpath-skill");
 	}
 
 	@Test

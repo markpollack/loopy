@@ -37,19 +37,22 @@ class SkillsIntegrationTest {
 	}
 
 	@Test
-	void agentOmitsSkillToolWhenNoSkillsExist(@TempDir Path tempDir) {
-		// No .claude/skills/ directory — SkillsTool should not be registered
+	void agentRegistersSkillToolFromClasspathWhenNoFilesystemSkills(@TempDir Path tempDir) {
+		// No .claude/skills/ directory — Skill tool still registered via classpath skills
+		// (META-INF/skills/ in test resources simulates a SkillsJar on the classpath)
 		var agent = buildAgent(tempDir);
-		assertThat(agent.toolNames()).doesNotContain("Skill");
+		assertThat(agent.toolNames()).contains("Skill");
 	}
 
 	@Test
-	void agentOmitsSkillToolWhenDirectoryExistsButEmpty(@TempDir Path tempDir) throws IOException {
-		// Directory exists but has no SKILL.md files
+	void agentRegistersSkillToolWhenDirectoryExistsButEmptyDueToClasspathSkills(@TempDir Path tempDir)
+			throws IOException {
+		// Filesystem directory exists but is empty — classpath skills still provide the
+		// Skill tool
 		Files.createDirectories(tempDir.resolve(".claude/skills"));
 
 		var agent = buildAgent(tempDir);
-		assertThat(agent.toolNames()).doesNotContain("Skill");
+		assertThat(agent.toolNames()).contains("Skill");
 	}
 
 	@Test

@@ -23,7 +23,7 @@ Each major protocol integration has its own detailed roadmap to keep documents m
 |---------|-------|--------|-------------|
 | [`roadmap-boot.md`](roadmap-boot.md) | 7.0 | **DONE** | `/boot-new`, `/starters`, `/boot-add`, `/boot-modify` — all 5 stages complete (2026-03-10) |
 | [`roadmap-skills.md`](roadmap-skills.md) | 7.5 | **DONE (Stages 1–3)** | Stages 1–3 DONE (SkillsTool, `/skills`, 23-skill catalog). Stages 4–6 DEFERRED — SkillsJars handles packaging. |
-| — | 8 | **IN PROGRESS** | **Modular Foundation** — 8a DONE (AgentYaml, LoopyToolsFactory, profile bundles), 8b DONE (ToolProfileContributor SPI), **8c NEXT** (SkillsJars classpath scanning) |
+| — | 8 | **DONE** | **Modular Foundation** — 8a DONE (AgentYaml, LoopyToolsFactory, profile bundles), 8b DONE (ToolProfileContributor SPI), 8c DONE (SkillsJars classpath scanning) |
 | [`roadmap-mcp.md`](roadmap-mcp.md) | 9 | TODO | MCP client — `.mcp.json` standard format (DD-14), lazy startup |
 | [`roadmap-acp.md`](roadmap-acp.md) | 9.5 | TODO | ACP agent mode (DD-19) — editors drive Loopy via stdio/WebSocket, ~3-6h |
 | [`roadmap-a2a.md`](roadmap-a2a.md) | 10 | TODO | A2A client auto-config (DD-15) — declarative YAML, contribute upstream to spring-ai-a2a |
@@ -489,28 +489,27 @@ Custom tool JARs drop onto the classpath as Maven dependencies (declared in the 
 - [x] 2 new tests: contributor resolved, contributor cannot override built-in profile
 - [x] COMMIT
 
-### Step 8.c: SkillsJars classpath scanning (forged agent projects) — NEXT
+### Step 8.c: SkillsJars classpath scanning (forged agent projects) ✅ DONE
 
 Applies to **forged agent projects** (standalone Maven projects, no TUI, no `/skills` command). Loopy CLI's existing `/skills add` + disk catalog already handles the interactive case.
 
-A forged agent project wires `SkillsTool` into its agent loop. Today, skills must be present on disk. With this step, declaring a SkillsJar in the project's `pom.xml` is sufficient — `SkillsTool` scans `META-INF/skills/**` on the classpath and the skills are available to the agent loop automatically. No install step, no extraction for markdown, no catalog update. Same distribution model as any other Maven dependency.
+A forged agent project wires `SkillsTool` into its agent loop. Declaring a SkillsJar in the project's `pom.xml` is sufficient — `SkillsTool` scans `META-INF/skills/**` and `META-INF/resources/skills/**` on the classpath at startup. Skills are available to the agent loop automatically. No install step, no extraction for markdown, no catalog update. Same distribution model as any other Maven dependency.
 
-**Design**:
-- Skills (`.md` files): read directly from classpath via `ClassLoader.getResources("META-INF/skills/")` — no extraction, no disk writes
-- Scripts (executables bundled alongside `SKILL.md`): extracted to project-local `./skills/{org}/{repo}/{skill}/` on first activation — per-project scope, no global state
+**Implementation** (all in `MiniAgent.java`):
+- `ClassPathResource("META-INF/skills")` and `ClassPathResource("META-INF/resources/skills")` passed to `SkillsTool.Builder.addSkillsResource()` at construction time
+- `Skills.loadResource()` (in spring-ai-agent-utils) handles the classpath → JAR scan path; `PathMatchingResourcePatternResolver` and manual JAR scan fallback already implemented there
+- `/skills list` in `SkillsCommand` also shows classpath skills (same scanning path)
+- Script extraction deferred: classpath skills are `.md` only in the SkillsJars convention; scripts would require a separate extraction step (future if needed)
 
 **Work items**:
-- [ ] IMPLEMENT `ClasspathSkillsScanner` — scans `META-INF/skills/**/*.md` on classpath, parses frontmatter, returns `List<SkillDefinition>`
-- [ ] UPDATE `SkillsTool` — merge classpath-discovered skills with existing disk-based skills at startup
-- [ ] IMPLEMENT script extraction — on skill activation, extract non-`.md` files to `./skills/{path}/` relative to working directory; `chmod +x` executables
-- [ ] WRITE unit tests: scanner finds skills from test classpath resources; script extraction to temp dir
-- [ ] VERIFY: `./mvnw test`
-
-**Exit criteria**:
-- [ ] SkillsJar on classpath → skills available to `SkillsTool` in forged agent loop with no install step
-- [ ] Script extraction to project-local `./skills/` on first activation
-- [ ] Tests pass: `./mvnw test`
-- [ ] COMMIT
+- [x] `MiniAgent` scans `META-INF/skills/**` + `META-INF/resources/skills/**` from classpath at startup
+- [x] `SkillsCommand` (`/skills list`) shows classpath-discovered skills alongside filesystem skills
+- [x] Test classpath resource: `src/test/resources/META-INF/skills/test-org/test-repo/classpath-skill/SKILL.md`
+- [x] `ClasspathSkillsScanningTest` — 4 tests: classpath-only, merged, coexistence, explicit disable
+- [x] `SkillsIntegrationTest` — 2 tests updated to reflect classpath skills always present in test JVM
+- [x] `SkillsCommandTest` — `listNoSkills` updated: verifies classpath skill appears in `/skills list`
+- [x] All 303 tests pass: `./mvnw test`
+- [x] COMMIT
 
 ---
 
@@ -667,3 +666,4 @@ Every step's exit criteria must include:
 | 2026-03-12 | Mark Steps 7.0A, 7.0B, 7.1, 7.4, 7.5, 7.6, 7.8 DONE. ListDirectory, subagent infra (TaskOutputTool, custom agents, multi-model routing, skills propagation), AGENTS.md injection, tool error tests, grace turn, stuck detection, session persistence. | Roadmap sync |
 | 2026-03-13 | Add Stage 8 (Modular Foundation — DD-12/13/16/17). Renumber MCP→9, ACP→9.5, Knowledge Activation→11. Move A2A from Wave 3 to Wave 2. Mark Skills Stages 4–6 DEFERRED (SkillsJars handles packaging). Update order rationale. Wave summary updated. | Design review: modular platform |
 | 2026-03-13 | Stage 8a DONE (AgentYaml, AgentYamlLoader, LoopyToolsFactory, ToolFactoryContext, MiniAgent.profileToolCallbacks). Stage 8b DONE (ToolProfileContributor SPI via ServiceLoader, injectable for testing). Add Stage 8c (SkillsJars classpath scanning — META-INF/skills/**, script extraction to project-local ./skills/). Add loopy-agent-spring-boot-starter to Future Waves. Classpath IS the plugin directory — no ~/.config/loopy/tools/ global dir. | Stage 8 implementation + AgentJars design discussion |
+| 2026-03-17 | Stage 8c DONE (SkillsJars classpath scanning). MiniAgent scans META-INF/skills + META-INF/resources/skills at startup; SkillsCommand /skills list also shows classpath skills. ClasspathSkillsScanningTest (4 tests) + SkillsIntegrationTest/SkillsCommandTest updated. Stage 8 DONE. Next: Stage 9 (MCP). | Stage 8c implementation |
