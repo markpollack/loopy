@@ -5,7 +5,6 @@ import io.github.markpollack.loopy.agent.MiniAgent.MiniAgentResult;
 import io.github.markpollack.loopy.agent.MiniAgentConfig;
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
-import org.springframework.ai.anthropic.api.AnthropicApi;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -208,24 +207,11 @@ public class LoopyAgent {
 			}
 
 			String model = modelId != null ? modelId : "claude-sonnet-4-6";
-			var apiBuilder = AnthropicApi.builder().apiKey(resolvedApiKey);
+			var optionsBuilder = AnthropicChatOptions.builder().apiKey(resolvedApiKey).model(model).maxTokens(16384);
 			if (baseUrl != null) {
-				apiBuilder.baseUrl(baseUrl);
-				// Custom endpoints (LM Studio, vLLM) typically only support HTTP/1.1.
-				// Java 21's HttpClient defaults to HTTP/2 which hangs on HTTP/1.1
-				// servers.
-				var httpClient = java.net.http.HttpClient.newBuilder()
-					.version(java.net.http.HttpClient.Version.HTTP_1_1)
-					.build();
-				var requestFactory = new org.springframework.http.client.JdkClientHttpRequestFactory(httpClient);
-				apiBuilder.restClientBuilder(
-						org.springframework.web.client.RestClient.builder().requestFactory(requestFactory));
+				optionsBuilder.baseUrl(baseUrl);
 			}
-			var anthropicApi = apiBuilder.build();
-			var chatModel = AnthropicChatModel.builder()
-				.anthropicApi(anthropicApi)
-				.defaultOptions(AnthropicChatOptions.builder().model(model).maxTokens(16384).build())
-				.build();
+			var chatModel = AnthropicChatModel.builder().options(optionsBuilder.build()).build();
 
 			// Build MiniAgent config
 			var configBuilder = MiniAgentConfig.builder()

@@ -9,7 +9,6 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
-import org.springframework.ai.anthropic.api.AnthropicApi;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -94,10 +93,12 @@ class BootNewAgentIT {
 	}
 
 	private static AnthropicChatModel haiku() {
-		var api = AnthropicApi.builder().apiKey(System.getenv("ANTHROPIC_API_KEY")).build();
 		return AnthropicChatModel.builder()
-			.anthropicApi(api)
-			.defaultOptions(AnthropicChatOptions.builder().model("claude-haiku-4-5-20251001").maxTokens(2048).build())
+			.options(AnthropicChatOptions.builder()
+				.apiKey(System.getenv("ANTHROPIC_API_KEY"))
+				.model("claude-haiku-4-5-20251001")
+				.maxTokens(2048)
+				.build())
 			.build();
 	}
 

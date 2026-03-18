@@ -10,7 +10,6 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
-import org.springframework.ai.anthropic.api.AnthropicApi;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.google.genai.GoogleGenAiChatModel;
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
@@ -36,10 +35,12 @@ class MultiProviderIT {
 	@Test
 	@EnabledIfEnvironmentVariable(named = "ANTHROPIC_API_KEY", matches = ".+")
 	void anthropicSimpleTask() {
-		var api = AnthropicApi.builder().apiKey(System.getenv("ANTHROPIC_API_KEY")).build();
 		var chatModel = AnthropicChatModel.builder()
-			.anthropicApi(api)
-			.defaultOptions(AnthropicChatOptions.builder().model("claude-haiku-4-5-20251001").maxTokens(1024).build())
+			.options(AnthropicChatOptions.builder()
+				.apiKey(System.getenv("ANTHROPIC_API_KEY"))
+				.model("claude-haiku-4-5-20251001")
+				.maxTokens(1024)
+				.build())
 			.build();
 
 		var result = runSimpleTask(chatModel, "claude-haiku-4-5-20251001");

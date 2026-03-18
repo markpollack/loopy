@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.3</version>
+        <version>4.1.0-M2</version>
         <relativePath/> <!-- lookup from repository -->
     </parent>
 
@@ -46,13 +46,13 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <!-- Spring AI -->
-        <spring-ai.version>2.0.0-M2</spring-ai.version>
+        <spring-ai.version>2.0.0-M3</spring-ai.version>
 
         <!-- TUI4J -->
         <tui4j.version>0.3.3</tui4j.version>
 
         <!-- Community Tools -->
-        <spring-ai-agent-utils.version>0.5.0-SNAPSHOT</spring-ai-agent-utils.version>
+        <spring-ai-agent-utils.version>0.6.0-SNAPSHOT</spring-ai-agent-utils.version>
 
         <!-- Picocli -->
         <picocli.version>4.7.6</picocli.version>
