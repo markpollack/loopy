@@ -1,8 +1,8 @@
 package io.github.markpollack.loopy.boot;
 
-import io.github.markpollack.harness.patterns.graph.GraphCompositionStrategy;
-import io.github.markpollack.harness.patterns.graph.GraphContext;
-import io.github.markpollack.harness.patterns.graph.GraphResult;
+import io.github.markpollack.workflow.patterns.graph.GraphCompositionStrategy;
+import io.github.markpollack.workflow.patterns.graph.GraphContext;
+import io.github.markpollack.workflow.patterns.graph.GraphResult;
 import io.github.markpollack.loopy.agent.MiniAgent;
 import io.github.markpollack.loopy.agent.MiniAgentConfig;
 import org.jspecify.annotations.Nullable;

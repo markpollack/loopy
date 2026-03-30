@@ -52,7 +52,7 @@
         <tui4j.version>0.3.3</tui4j.version>
 
         <!-- Community Tools -->
-        <spring-ai-agent-utils.version>0.6.0-SNAPSHOT</spring-ai-agent-utils.version>
+        <spring-ai-agent-utils.version>0.6.0</spring-ai-agent-utils.version>
 
         <!-- Picocli -->
         <picocli.version>4.7.6</picocli.version>
@@ -130,14 +130,14 @@
         <dependency>
             <groupId>io.github.markpollack</groupId>
             <artifactId>journal-core</artifactId>
-            <version>1.0.1-SNAPSHOT</version>
+            <version>0.9.0</version>
         </dependency>
 
         <!-- Graph Composition (boot scaffolding workflow orchestration) -->
         <dependency>
             <groupId>io.github.markpollack</groupId>
-            <artifactId>harness-patterns</artifactId>
-            <version>0.9.0-SNAPSHOT</version>
+            <artifactId>workflow-core</artifactId>
+            <version>0.1.0</version>
         </dependency>
 
         <!-- JavaParser (deterministic package rename in /boot-new scaffolding) -->
