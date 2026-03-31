@@ -44,11 +44,21 @@ Add the export to your shell profile (`~/.bashrc`, `~/.zshrc`) to persist across
 
 ## Quick Start
 
+### Maven Central
+
+```xml
+<dependency>
+    <groupId>io.github.markpollack</groupId>
+    <artifactId>loopy</artifactId>
+    <version>0.3.0</version>
+</dependency>
+```
+
 ### Download fat JAR (easiest)
 
 ```bash
-curl -LO https://github.com/markpollack/loopy/releases/download/v0.2.0/loopy-0.2.0-SNAPSHOT.jar
-java -jar loopy-0.2.0-SNAPSHOT.jar
+curl -LO https://github.com/markpollack/loopy/releases/download/v0.3.0/loopy-0.3.0.jar
+java -jar loopy-0.3.0.jar
 ```
 
 ### Build from source
@@ -57,7 +67,7 @@ java -jar loopy-0.2.0-SNAPSHOT.jar
 git clone https://github.com/markpollack/loopy.git
 cd loopy
 ./mvnw package
-java -jar target/loopy-0.2.0-SNAPSHOT.jar
+java -jar target/loopy-0.3.0.jar
 ```
 
 ## Execution Modes
