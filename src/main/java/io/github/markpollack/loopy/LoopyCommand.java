@@ -25,6 +25,7 @@ import io.github.markpollack.loopy.command.BtwCommand;
 import io.github.markpollack.loopy.command.ClearCommand;
 import io.github.markpollack.loopy.command.CommandContext;
 import io.github.markpollack.loopy.command.HelpCommand;
+import io.github.markpollack.loopy.command.MarkdownSlashCommand;
 import io.github.markpollack.loopy.command.ModelCommand;
 import io.github.markpollack.loopy.command.QuitCommand;
 import io.github.markpollack.loopy.command.SkillsCommand;
@@ -337,7 +338,45 @@ public class LoopyCommand implements Callable<Integer> {
 		registry.register(new BootAddCommand(chatModel));
 		registry.register(new BootModifyCommand());
 		registry.register(new QuitCommand());
+
+		// Load markdown commands from Claude Code conventions — these overwrite
+		// Java commands on name conflict (imported commands take precedence)
+		loadMarkdownCommands(registry);
+
 		return registry;
+	}
+
+	/**
+	 * Scan {@code ~/.claude/commands/} and {@code .claude/commands/} (project-local) for
+	 * markdown command files and register them. Project-local commands are loaded last so
+	 * they take highest precedence.
+	 */
+	private void loadMarkdownCommands(SlashCommandRegistry registry) {
+		Path globalDir = Path.of(System.getProperty("user.home"), ".claude", "commands");
+		Path workDir = this.directory != null ? this.directory : Path.of(System.getProperty("user.dir"));
+		Path localDir = workDir.resolve(".claude").resolve("commands");
+
+		loadMarkdownCommandsFromDir(globalDir, registry);
+		if (!localDir.equals(globalDir)) {
+			loadMarkdownCommandsFromDir(localDir, registry);
+		}
+	}
+
+	private static void loadMarkdownCommandsFromDir(Path dir, SlashCommandRegistry registry) {
+		if (!Files.isDirectory(dir)) {
+			return;
+		}
+		try (var stream = Files.list(dir)) {
+			stream.filter(p -> p.toString().endsWith(".md")).sorted().forEach(file -> {
+				var cmd = MarkdownSlashCommand.fromFile(file);
+				if (cmd != null) {
+					registry.register(cmd);
+				}
+			});
+		}
+		catch (IOException ex) {
+			// Non-critical — skip silently
+		}
 	}
 
 	private MiniAgent createAgent(ChatModel chatModel, boolean withSession) {
